@@ -21,7 +21,13 @@ const ScheduleValidator = {
         );
 
         const alternatives = typeOptions
+            .map(s => ScheduleEngine.normalizeSection({
+                ...s,
+                courseName: currentSection.courseCode,
+                sectionType: currentSection.sectionType
+            }))
             .filter(s => s.code !== currentSection.sectionCode)
+            .filter(s => ScheduleEngine.hasValidTiming(s))
             .map(section => {
                 const sectionWithMeta = {
                     ...section,

@@ -25,7 +25,8 @@ const DragManager = {
     config: {
         startHour: 7,
         hourHeight: 60,
-        dragThreshold: 5
+        dragThreshold: 5,
+        swapDistanceMargin: 35
     },
 
     /** Set by calendar: onDragStart (per block), onDrop, onCancel, recalculateLayout (global). */
@@ -171,17 +172,11 @@ const DragManager = {
         this._justFinishedDrag = true;
     },
 
-    /** Resolve drop: ghost under cursor → that alt; else day column + Y → findMatchingSection or findNearestValidAlternative. */
+    /** Resolve drop: ghost under cursor → that alt; else compare distance to original slot vs alternatives. */
     detectDropTarget(clientX, clientY) {
-        // #region agent log
-        fetch('http://127.0.0.1:7828/ingest/97e54af5-e758-471d-96e1-2fa7665383c8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5d9964'},body:JSON.stringify({sessionId:'5d9964',location:'dragManager.js:detectDropTarget',message:'detectDropTarget entry',data:{clientX,clientY,validAltsCount:this.state.validAlternatives?.length,validAltsCodes:this.state.validAlternatives?.map(a=>a.section?.code)},timestamp:Date.now(),hypothesisId:'H1-H2'})}).catch(()=>{});
-        // #endregion
         if (!this.state.validAlternatives.length) return null;
 
         const ghostUnder = document.elementFromPoint(clientX, clientY);
-        // #region agent log
-        fetch('http://127.0.0.1:7828/ingest/97e54af5-e758-471d-96e1-2fa7665383c8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5d9964'},body:JSON.stringify({sessionId:'5d9964',location:'dragManager.js:elementFromPoint',message:'element under cursor',data:{tag:ghostUnder?.tagName,className:ghostUnder?.className,isGhost:!!ghostUnder?.closest?.('.ghost-preview'),ghostAltCode:ghostUnder?.closest?.('.ghost-preview')?.dataset?.altCode},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-        // #endregion
         if (ghostUnder?.closest?.('.ghost-preview')) {
             const ghost = ghostUnder.closest('.ghost-preview');
             const altCode = ghost?.dataset?.altCode;
@@ -193,43 +188,60 @@ const DragManager = {
             }
         }
 
-        const dayColumns = document.querySelectorAll('.day-column');
-        let targetDay = null;
-        let targetDayBody = null;
+        const originalSection = this.state.draggedSection;
+        if (!originalSection) return null;
 
-        for (const col of dayColumns) {
-            const rect = col.getBoundingClientRect();
-            if (clientX >= rect.left && clientX <= rect.right) {
-                targetDay = col.dataset.day;
-                targetDayBody = col.querySelector('.day-body');
-                break;
+        const originalDist = this.getSlotDistance(clientX, clientY, originalSection);
+
+        let bestAlt = null;
+        let bestDist = Infinity;
+
+        for (const alt of this.state.validAlternatives) {
+            const dist = this.getSlotDistance(clientX, clientY, alt.section);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestAlt = alt;
             }
         }
 
-        if (!targetDay || !targetDayBody) {
-            return null;
+        if (!bestAlt) return null;
+
+        // Only swap when drop point is clearly closer to an alternative than to the original slot
+        if (bestDist + this.config.swapDistanceMargin < originalDist) {
+            return { section: bestAlt.section, isValid: bestAlt.isValid };
         }
 
-        const bodyRect = targetDayBody.getBoundingClientRect();
-        const relativeY = clientY - bodyRect.top;
+        return null;
+    },
 
-        // #region agent log
-        fetch('http://127.0.0.1:7828/ingest/97e54af5-e758-471d-96e1-2fa7665383c8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5d9964'},body:JSON.stringify({sessionId:'5d9964',location:'dragManager.js:relativeY',message:'day-body bounds check',data:{relativeY,bodyHeight:bodyRect.height,rejected:relativeY<0||relativeY>bodyRect.height,targetDay},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-        // #endregion
-        if (relativeY < 0 || relativeY > bodyRect.height) {
-            return null;
+    /** Pixel distance from cursor to the center of a section's calendar slot(s). */
+    getSlotDistance(clientX, clientY, section) {
+        const time = this.parseTimingRange(section.timing);
+        if (!time.end || time.end <= time.start) return Infinity;
+
+        const days = (section.days || [])
+            .map(d => this.normalizeDay(d))
+            .filter(d => d && d.length >= 2);
+
+        if (days.length === 0) return Infinity;
+
+        const slotCenterMinutes = time.start + (time.end - time.start) / 2;
+        let minDist = Infinity;
+
+        for (const day of days) {
+            const dayBody = document.querySelector(`.day-body[data-day="${day}"]`);
+            if (!dayBody) continue;
+
+            const rect = dayBody.getBoundingClientRect();
+            const slotY = rect.top + ((slotCenterMinutes - this.config.startHour * 60) / 60) * this.config.hourHeight;
+            const slotX = rect.left + rect.width / 2;
+            const dx = clientX - slotX;
+            const dy = clientY - slotY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < minDist) minDist = dist;
         }
 
-        const slotStartMinutes = this.config.startHour * 60 + (relativeY / this.config.hourHeight) * 60;
-
-        const matched = this.findMatchingSection(targetDay, slotStartMinutes);
-        const fallback = this.findNearestValidAlternative(targetDay);
-        // #region agent log
-        fetch('http://127.0.0.1:7828/ingest/97e54af5-e758-471d-96e1-2fa7665383c8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5d9964'},body:JSON.stringify({sessionId:'5d9964',location:'dragManager.js:detectDropTarget exit',message:'grid detection result',data:{hasMatched:!!matched,matchedCode:matched?.section?.code,hasFallback:!!fallback,fallbackCode:fallback?.section?.code,finalResult:!!(matched||fallback)},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
-        // #endregion
-        if (matched) return matched;
-
-        return fallback;
+        return minDist;
     },
 
     /** Among alternatives on this day, pick one closest to slotStartMinutes; prefer non-conflicting. */
@@ -284,9 +296,6 @@ const DragManager = {
 
         this.clearDropZones();
 
-        // #region agent log
-        fetch('http://127.0.0.1:7828/ingest/97e54af5-e758-471d-96e1-2fa7665383c8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5d9964'},body:JSON.stringify({sessionId:'5d9964',location:'dragManager.js:finishDrop',message:'finishDrop branch',data:{hasDropResult:!!dropResult,hasOnDrop:!!this.callbacks.onDrop,willCommit:!!(dropResult&&this.callbacks.onDrop),finalSectionCode:dropResult?.section?.code},timestamp:Date.now(),hypothesisId:'H6'})}).catch(()=>{});
-        // #endregion
         if (dropResult && this.callbacks.onDrop) {
             let finalSection = dropResult.section;
             if (!dropResult.isValid && this.state.schedule && this.state.courseData && typeof ScheduleValidator !== 'undefined') {

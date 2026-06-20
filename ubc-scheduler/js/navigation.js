@@ -215,10 +215,10 @@ async function handlePendingWorkdaySchedules() {
             const pending = result.ubcPendingWorkdaySchedules;
             if (pending?.schedules?.length) {
                 console.log(
-                    'UBC Scheduler: Pending Workday schedules ready for enrollment:',
-                    pending.schedules.length,
-                    pending
+                    '[Add to Workday] Workday tab received pending schedules via chrome.storage.local key "ubcPendingWorkdaySchedules":',
+                    pending.schedules
                 );
+                console.log('[Add to Workday] Schedule IDs:', pending.scheduleIds);
             } else {
                 console.log('UBC Scheduler: No pending Workday schedules in storage.');
             }

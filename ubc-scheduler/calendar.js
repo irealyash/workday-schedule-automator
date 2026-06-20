@@ -13,6 +13,8 @@ const CalendarApp = {
     originalScheduleName: null,
     gridBuilt: false,
     savedSchedulesManager: null,
+    skippedSections: [],
+    alertsAutoShown: false,
 
     dom: {},
 
@@ -46,16 +48,28 @@ const CalendarApp = {
             return;
         }
 
-        let schedule = ScheduleEngine.generateBestSchedule(courseData, preferences);
+        let schedule = null;
+        let skippedSections = [];
+
+        const bestResult = ScheduleEngine.generateBestSchedule(courseData, preferences);
+        schedule = bestResult.schedule;
+        skippedSections = bestResult.skippedSections || [];
+
         if (!schedule) {
-            schedule = ScheduleEngine.generateScheduleWithConflicts(courseData, preferences);
+            const conflictResult = ScheduleEngine.generateScheduleWithConflicts(courseData, preferences);
+            schedule = conflictResult?.schedule;
+            skippedSections = conflictResult?.skippedSections || skippedSections;
         }
 
         if (!schedule) {
+            this.skippedSections = skippedSections;
+            this.setupScheduleAlerts();
             this.showNoSchedule();
             return;
         }
 
+        this.skippedSections = skippedSections;
+        this.setupScheduleAlerts(true);
         AppState.setActiveSchedule(schedule);
         this.dom.scheduleNameInput.value = schedule.name;
         this.originalScheduleName = schedule.name;
@@ -88,8 +102,54 @@ const CalendarApp = {
             modalLocation: document.getElementById('modalLocation'),
             modalTimes: document.getElementById('modalTimes'),
             modalDates: document.getElementById('modalDates'),
-            modalFormat: document.getElementById('modalFormat')
+            modalFormat: document.getElementById('modalFormat'),
+            scheduleAlertsBtn: document.getElementById('scheduleAlertsBtn'),
+            scheduleAlertsBadge: document.getElementById('scheduleAlertsBadge'),
+            scheduleAlertsModal: document.getElementById('scheduleAlertsModal'),
+            scheduleAlertsCloseBtn: document.getElementById('scheduleAlertsCloseBtn'),
+            scheduleAlertsList: document.getElementById('scheduleAlertsList')
         };
+    },
+
+    setupScheduleAlerts(autoOpen = false) {
+        const alerts = this.skippedSections || [];
+        const btn = this.dom.scheduleAlertsBtn;
+        const badge = this.dom.scheduleAlertsBadge;
+
+        if (!btn || !badge) return;
+
+        if (alerts.length === 0) {
+            btn.hidden = true;
+            btn.classList.remove('has-alerts');
+            return;
+        }
+
+        btn.hidden = false;
+        btn.classList.add('has-alerts');
+        badge.textContent = String(alerts.length);
+
+        if (autoOpen && !this.alertsAutoShown) {
+            this.alertsAutoShown = true;
+            this.openScheduleAlertsModal();
+        }
+    },
+
+    openScheduleAlertsModal() {
+        const list = this.dom.scheduleAlertsList;
+        if (!list) return;
+
+        list.innerHTML = '';
+        (this.skippedSections || []).forEach(item => {
+            const li = document.createElement('li');
+            li.innerHTML = `<strong>${this.escapeHtml(item.courseCode)}</strong> — ${this.escapeHtml(item.sectionType)}<br><span>${this.escapeHtml(item.reason || 'No valid timing/days')}</span>`;
+            list.appendChild(li);
+        });
+
+        this.dom.scheduleAlertsModal.hidden = false;
+    },
+
+    closeScheduleAlertsModal() {
+        this.dom.scheduleAlertsModal.hidden = true;
     },
 
     setupSavedSchedulesManager() {
@@ -134,6 +194,11 @@ const CalendarApp = {
         // Triggers SavedSchedulesManager.handleAddToWorkday() → writes "ubcPendingWorkdaySchedules" then focuses Workday tab
         this.dom.addToWorkdayBtn.addEventListener('click', () => {
             this.savedSchedulesManager.handleAddToWorkday();
+        });
+        this.dom.scheduleAlertsBtn.addEventListener('click', () => this.openScheduleAlertsModal());
+        this.dom.scheduleAlertsCloseBtn.addEventListener('click', () => this.closeScheduleAlertsModal());
+        this.dom.scheduleAlertsModal.addEventListener('click', (e) => {
+            if (e.target === this.dom.scheduleAlertsModal) this.closeScheduleAlertsModal();
         });
     },
 
@@ -391,6 +456,8 @@ const CalendarApp = {
 
     applyLoadedSchedule(schedule) {
         AppState.setActiveSchedule(schedule);
+        this.skippedSections = schedule.metadata?.skippedSections || [];
+        this.setupScheduleAlerts();
         this.editingScheduleId = schedule.id;
         this.originalScheduleName = schedule.name;
         this.dom.scheduleNameInput.value = schedule.name;

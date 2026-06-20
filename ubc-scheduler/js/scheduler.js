@@ -33,6 +33,7 @@ const ScheduleEngine = {
 
     /** Normalize day to "Mon", "Tue", etc. */
     normalizeDay(day) {
+        if (!day || typeof day !== 'string') return '';
         const map = {
             'MON': 'Mon', 'MONDAY': 'Mon',
             'TUE': 'Tue', 'TUESDAY': 'Tue',
@@ -43,6 +44,98 @@ const ScheduleEngine = {
             'SUN': 'Sun', 'SUNDAY': 'Sun'
         };
         return map[day.toUpperCase()] || day;
+    },
+
+    /** True when section has usable timing and at least one valid day. */
+    hasValidTiming(section) {
+        const timing = (section.timing || '').trim();
+        if (!timing || !timing.includes('-')) return false;
+
+        const range = this.parseTimingRange(timing);
+        if (range.end <= range.start) return false;
+
+        const days = (section.days || [])
+            .map(d => this.normalizeDay(String(d).trim()))
+            .filter(d => d && d.length >= 2);
+
+        return days.length > 0;
+    },
+
+    /** Fix hybrid/online rows where days/timing were parsed into the location field. */
+    normalizeSection(section) {
+        const normalized = { ...section };
+        if (this.hasValidTiming(normalized)) {
+            normalized.days = (normalized.days || [])
+                .map(d => this.normalizeDay(String(d).trim()))
+                .filter(d => d && d.length >= 2);
+            return normalized;
+        }
+
+        const location = normalized.location || '';
+        const parts = location.split('|').map(p => p.trim()).filter(Boolean);
+
+        for (const part of parts) {
+            if (!normalized.timing && /\d{1,2}:\d{2}\s*[ap]\.?m\.?\s*-\s*\d{1,2}:\d{2}\s*[ap]\.?m\.?/i.test(part)) {
+                normalized.timing = part;
+            }
+            if ((normalized.days || []).filter(d => d && String(d).trim()).length === 0) {
+                const dayTokens = part.split(/\s+/).filter(Boolean);
+                if (dayTokens.length > 0 && dayTokens.every(t => this.normalizeDay(t).length >= 2)) {
+                    normalized.days = dayTokens.map(t => t.toUpperCase());
+                }
+            }
+            if (!normalized.dates?.length && /^\d{4}-\d{2}-\d{2}\s*-\s*\d{4}-\d{2}-\d{2}/.test(part)) {
+                normalized.dates = [part];
+            }
+        }
+
+        normalized.days = (normalized.days || [])
+            .map(d => this.normalizeDay(String(d).trim()))
+            .filter(d => d && d.length >= 2);
+
+        return normalized;
+    },
+
+    /**
+     * Build schedulable requirements from course data.
+     * Skips section types with no valid timing; supports Seminar and all other types.
+     */
+    buildRequirements(courseData) {
+        const skippedSections = [];
+        const requirements = [];
+
+        for (const [courseName, sections] of Object.entries(courseData || {})) {
+            const req = { courseName, needed: [] };
+
+            for (const [sectionType, typeSections] of Object.entries(sections || {})) {
+                if (!Array.isArray(typeSections) || typeSections.length === 0) continue;
+
+                const validOptions = typeSections
+                    .map(s => this.normalizeSection({ ...s, courseName, sectionType }))
+                    .filter(s => this.hasValidTiming(s));
+
+                if (validOptions.length === 0) {
+                    skippedSections.push({
+                        courseCode: courseName,
+                        sectionType,
+                        reason: 'No section with valid timing/days was available'
+                    });
+                    continue;
+                }
+
+                req.needed.push({ type: sectionType, options: validOptions });
+            }
+
+            if (req.needed.length > 0) {
+                requirements.push(req);
+            }
+        }
+
+        return {
+            requirements,
+            skippedSections,
+            flatRequirements: requirements.flatMap(r => r.needed)
+        };
     },
 
     /** True if same day and time ranges overlap. */
@@ -192,26 +285,9 @@ const ScheduleEngine = {
 
     /** Backtrack over course requirements; return up to maxResults conflict-free schedules. */
     generateSchedules(courseData, preferences, maxResults = 10) {
-        const courses = Object.entries(courseData);
+        const { flatRequirements, skippedSections } = this.buildRequirements(courseData);
+        this._lastSkippedSections = skippedSections;
         const results = [];
-
-        const requirements = courses.map(([courseName, sections]) => {
-            const req = { courseName, needed: [] };
-
-            if (sections.Lecture?.length) {
-                req.needed.push({ type: 'Lecture', options: sections.Lecture.map(s => ({ ...s, courseName, sectionType: 'Lecture' })) });
-            }
-            if (sections.Discussion?.length) {
-                req.needed.push({ type: 'Discussion', options: sections.Discussion.map(s => ({ ...s, courseName, sectionType: 'Discussion' })) });
-            }
-            if (sections.Laboratory?.length) {
-                req.needed.push({ type: 'Laboratory', options: sections.Laboratory.map(s => ({ ...s, courseName, sectionType: 'Laboratory' })) });
-            }
-
-            return req;
-        });
-
-        const flatRequirements = requirements.flatMap(r => r.needed);
 
         if (flatRequirements.length === 0) return [];
 
@@ -241,32 +317,27 @@ const ScheduleEngine = {
 
     /** Prefer conflict-free; else greedy min-conflict schedule + formatSchedule with conflict keys. */
     generateScheduleWithConflicts(courseData, preferences) {
-        const courses = Object.entries(courseData);
-        const requirements = courses.map(([courseName, sections]) => {
-            const req = { courseName, needed: [] };
-            if (sections.Lecture?.length) {
-                req.needed.push({ type: 'Lecture', options: sections.Lecture.map(s => ({ ...s, courseName, sectionType: 'Lecture' })) });
-            }
-            if (sections.Discussion?.length) {
-                req.needed.push({ type: 'Discussion', options: sections.Discussion.map(s => ({ ...s, courseName, sectionType: 'Discussion' })) });
-            }
-            if (sections.Laboratory?.length) {
-                req.needed.push({ type: 'Laboratory', options: sections.Laboratory.map(s => ({ ...s, courseName, sectionType: 'Laboratory' })) });
-            }
-            return req;
-        });
+        const { flatRequirements, skippedSections } = this.buildRequirements(courseData);
+        this._lastSkippedSections = skippedSections;
 
-        const flatRequirements = requirements.flatMap(r => r.needed);
-        if (flatRequirements.length === 0) return null;
+        if (flatRequirements.length === 0) {
+            return { schedule: null, skippedSections };
+        }
 
         const conflictFree = this.generateSchedules(courseData, preferences, 1);
         if (conflictFree.length > 0) {
-            return this.formatSchedule(conflictFree[0], courseData, []);
+            return {
+                schedule: this.formatSchedule(conflictFree[0], courseData, [], skippedSections),
+                skippedSections
+            };
         }
 
         const bestSchedule = this.findMinimumConflictSchedule(flatRequirements);
         const conflicts = this.getConflictingSections(bestSchedule);
-        return this.formatSchedule(bestSchedule, courseData, conflicts);
+        return {
+            schedule: this.formatSchedule(bestSchedule, courseData, conflicts, skippedSections),
+            skippedSections
+        };
     },
 
     /** Greedy: for each requirement pick option that adds fewest conflicts. */
@@ -315,10 +386,12 @@ const ScheduleEngine = {
 
     /** Generate many schedules, score them, return highest-scoring formatted. */
     generateBestSchedule(courseData, preferences) {
+        const { skippedSections } = this.buildRequirements(courseData);
         const allSchedules = this.generateSchedules(courseData, preferences, 100);
+        const alerts = this._lastSkippedSections || skippedSections || [];
 
         if (allSchedules.length === 0) {
-            return null;
+            return { schedule: null, skippedSections: alerts };
         }
 
         let bestSchedule = allSchedules[0];
@@ -332,29 +405,24 @@ const ScheduleEngine = {
             }
         }
 
-        return this.formatSchedule(bestSchedule, courseData);
+        return {
+            schedule: this.formatSchedule(bestSchedule, courseData, [], alerts),
+            skippedSections: alerts
+        };
     },
 
     /** Turn section list into schedule object: id, name, totalCredits, sections (with hasConflict), metadata. */
-    formatSchedule(sections, courseData, conflictKeys = []) {
-        const totalCredits = sections.reduce((sum, s) => {
-            if (s.sectionType === 'Lecture') {
-                return sum + (s.credits || 0);
+    formatSchedule(sections, courseData, conflictKeys = [], skippedSections = []) {
+        const courseCredits = {};
+        sections.forEach(s => {
+            if (s.credits && !courseCredits[s.courseName]) {
+                courseCredits[s.courseName] = s.credits;
             }
-            return sum;
-        }, 0);
+        });
+        const totalCredits = Object.values(courseCredits).reduce((sum, c) => sum + c, 0);
 
         const courseNames = [...new Set(sections.map(s => s.courseName))];
         const conflictSet = conflictKeys instanceof Set ? conflictKeys : new Set(conflictKeys || []);
-
-        try {
-            console.log(sections);
-            console.log(courseData)
-
-        } catch (error) {
-
-        }
-
 
         return {
             id: crypto.randomUUID(),
@@ -380,7 +448,8 @@ const ScheduleEngine = {
             metadata: {
                 courseCount: courseNames.length,
                 courses: courseNames,
-                generatedAt: Date.now()
+                generatedAt: Date.now(),
+                skippedSections: skippedSections || []
             }
         };
     },

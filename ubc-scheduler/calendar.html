@@ -25,6 +25,14 @@
         </button>
       </div>
       <div class="header-right">
+        <button class="nav-btn alert-btn" id="scheduleAlertsBtn" title="Schedule alerts" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span class="alert-btn-badge" id="scheduleAlertsBadge">0</span>
+        </button>
         <button class="nav-btn saved-schedules-btn" id="savedSchedulesBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
@@ -147,6 +155,25 @@
             <span class="modal-info-label">Format</span>
             <span class="modal-info-value" id="modalFormat">-</span>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Schedule Alerts Modal -->
+    <div class="modal-overlay" id="scheduleAlertsModal" hidden>
+      <div class="modal-content alerts-modal-content">
+        <button class="modal-close" id="scheduleAlertsCloseBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+        <div class="modal-header">
+          <h2 class="modal-title">Sections Not Added</h2>
+        </div>
+        <div class="modal-body">
+          <p class="alerts-intro">These course sections had no valid timing/days and were skipped when building your calendar:</p>
+          <ul class="alerts-list" id="scheduleAlertsList"></ul>
         </div>
       </div>
     </div>

@@ -192,6 +192,11 @@ const SavedSchedulesManager = {
             await setPendingWorkdaySchedules(selected);
         }
 
+        const retrieveCommand = 'SavedSchedulesManager.getSelectedSchedules(await getSchedules()) — filters by this.selectedIds Set';
+        console.log('[Add to Workday] Retrieve command:', retrieveCommand);
+        console.log('[Add to Workday] Selected schedule IDs:', [...this.selectedIds]);
+        console.log('[Add to Workday] Selected saved schedules array:', selected);
+
         return new Promise((resolve) => {
             // Tab switch only — navigation.js reads "ubcPendingWorkdaySchedules" on the Workday content script
             chrome.runtime.sendMessage({ action: 'FOCUS_WORKDAY_TAB' }, (response) => {

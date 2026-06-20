@@ -113,6 +113,64 @@ html, body {
     height: 18px;
 }
 
+.alert-btn {
+    position: relative;
+}
+
+.alert-btn-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--warning);
+    color: #1a1a1a;
+    font-size: 0.65rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.alert-btn.has-alerts {
+    border-color: var(--warning);
+    color: var(--warning);
+}
+
+.alerts-modal-content {
+    min-width: 420px;
+}
+
+.alerts-intro {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+}
+
+.alerts-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.alerts-list li {
+    padding: 10px 12px;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: var(--radius-sm);
+    font-size: 0.88rem;
+    color: var(--text-primary);
+}
+
+.alerts-list li strong {
+    color: var(--warning);
+}
+
 .back-btn {
     padding: 8px;
 }

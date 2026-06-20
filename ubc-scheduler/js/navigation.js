@@ -33,7 +33,7 @@ function normalizeOptions(rawData) {
  */
 const autoScrollToLoadAll = async (itemSelector) => {
     const scrollContainer = document.querySelector('[data-automation-id="scrollableContainer"]') || document.documentElement;
-    
+
     let lastHeight = scrollContainer.scrollHeight;
     let lastCount = document.querySelectorAll(itemSelector).length;
     let keepScrolling = true;
@@ -677,9 +677,31 @@ async function cousreDataExtraction() {
         await delay(500);
     }
 
+
     console.log(allCourseData)
 
+    chrome.storage.local.set({ ubcExtractedCourses: allCourseData }, () => {
+        console.log("Course data saved to storage.");
+    });
+
+
+
+const finishNavigationAndOpenCalendar = async (allCourseData) => {
+    console.log("Scraping complete! Routing to background handler...");
+
+    // 1. Use chrome.storage.local so both scripts can safely access it
+    chrome.storage.local.set({ scrapedCourseData: allCourseData }, () => {
+        
+        // 2. Message the background script to open the file cleanly
+        chrome.runtime.sendMessage({ action: "OPEN_CALENDAR_PAGE" });
+    });
+};
+
+
+
+finishNavigationAndOpenCalendar(allCourseData); // Pass the extracted course data to the next phase (calendar rendering)
 
 
 }
+
 

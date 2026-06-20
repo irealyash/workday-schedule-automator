@@ -4,8 +4,21 @@
  */
 const REGISTRY_KEYS = {
     UI_WORKSPACE: 'ubc_ui_workspace_draft', // Key for Function 1 (UI draft preferences)
-    FINAL_SCHEDULES: 'ubc_compiled_schedules' // Key for Functions 2, 3, 4 (Extracted Workday data)
+    FINAL_SCHEDULES: 'ubc_compiled_schedules', // Key for Functions 2, 3, 4 (Saved schedules vault)
+    COURSE_DATA: 'ubcCourseData',
+    EXTRACTED_COURSES: 'ubcExtractedCourses',
+    SCRAPED_COURSE_DATA: 'scrapedCourseData'
 };
+
+function getLocalValue(key) {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage?.local) return resolve(null);
+
+        chrome.storage.local.get([key], (result) => {
+            resolve(result[key] ?? null);
+        });
+    });
+}
 
 // ==========================================
 // FUNCTION 1: Store Active UI Preferences
@@ -168,6 +181,172 @@ async function getUiWorkspace() {
                 console.log("Storage Engine [6/6]: No UI configuration workspace found.");
                 resolve(null);
             }
+        });
+    });
+}
+
+// ==========================================
+// FUNCTION 1B: Retrieve Extracted Course Data
+// ==========================================
+/**
+ * Gets the extracted course tree that navigation.js stores after scraping completes.
+ * @returns {Promise<Object>}
+ */
+async function getCourseData() {
+    const primary = await getLocalValue(REGISTRY_KEYS.COURSE_DATA);
+    if (primary) return primary;
+
+    const fallbackA = await getLocalValue(REGISTRY_KEYS.EXTRACTED_COURSES);
+    if (fallbackA) return fallbackA;
+
+    const fallbackB = await getLocalValue(REGISTRY_KEYS.SCRAPED_COURSE_DATA);
+    return fallbackB || {};
+}
+
+// ==========================================
+// FUNCTION 1C: Retrieve Form Data
+// ==========================================
+/**
+ * Gets the saved popup form selections.
+ * @returns {Promise<Object>}
+ */
+async function getFormData() {
+    return (await getUiWorkspace()) || {};
+}
+
+// ==========================================
+// FUNCTION 2B: Save Schedule with Validation
+// ==========================================
+/**
+ * Saves or updates a named schedule while preventing duplicate names.
+ * @param {Object} scheduleData
+ * @param {string|null} editingScheduleId
+ * @param {string|null} originalName
+ * @returns {Promise<{success:boolean,error?:string,schedule?:Object}>}
+ */
+async function saveScheduleWithValidation(scheduleData, editingScheduleId = null, originalName = null) {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+            resolve({ success: false, error: 'Storage unavailable' });
+            return;
+        }
+
+        chrome.storage.local.get([REGISTRY_KEYS.FINAL_SCHEDULES], (result) => {
+            const vault = result[REGISTRY_KEYS.FINAL_SCHEDULES] || {};
+            const nextName = (scheduleData?.name || 'Untitled Schedule').trim();
+            const nextId = editingScheduleId || scheduleData?.id || crypto.randomUUID();
+
+            const duplicate = Object.entries(vault).find(([key, value]) => {
+                const sameEntry = key === nextId || value?.id === nextId;
+                if (sameEntry) return false;
+                return (value?.name || key).trim().toLowerCase() === nextName.toLowerCase();
+            });
+
+            if (duplicate && duplicate[1]) {
+                resolve({ success: false, error: 'Schedule name already exists' });
+                return;
+            }
+
+            if (editingScheduleId && editingScheduleId !== nextId) {
+                delete vault[editingScheduleId];
+            }
+
+            vault[nextId] = {
+                id: nextId,
+                name: nextName,
+                ...scheduleData,
+                name: nextName,
+                lastModifiedTimestamp: new Date().toISOString(),
+                originalName: originalName || null
+            };
+
+            chrome.storage.local.set({ [REGISTRY_KEYS.FINAL_SCHEDULES]: vault }, () => {
+                resolve({ success: true, schedule: vault[nextId] });
+            });
+        });
+    });
+}
+
+// ==========================================
+// FUNCTION 3B: Delete Schedule by Id
+// ==========================================
+/**
+ * Deletes a schedule from the vault by id or name.
+ * @param {string} scheduleId
+ * @returns {Promise<boolean>}
+ */
+async function deleteSchedule(scheduleId) {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage?.local) return resolve(false);
+
+        chrome.storage.local.get([REGISTRY_KEYS.FINAL_SCHEDULES], (result) => {
+            const vault = result[REGISTRY_KEYS.FINAL_SCHEDULES] || {};
+
+            if (vault[scheduleId]) {
+                delete vault[scheduleId];
+            } else {
+                const entry = Object.entries(vault).find(([key, value]) => key === scheduleId || value?.id === scheduleId || value?.name === scheduleId);
+                if (!entry) return resolve(false);
+                delete vault[entry[0]];
+            }
+
+            chrome.storage.local.set({ [REGISTRY_KEYS.FINAL_SCHEDULES]: vault }, () => resolve(true));
+        });
+    });
+}
+
+// ==========================================
+// FUNCTION 5B: Retrieve Schedule by Id
+// ==========================================
+/**
+ * Fetches a saved schedule by id or name.
+ * @param {string} scheduleId
+ * @returns {Promise<Object|null>}
+ */
+async function getScheduleById(scheduleId) {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage?.local) return resolve(null);
+
+        chrome.storage.local.get([REGISTRY_KEYS.FINAL_SCHEDULES], (result) => {
+            const vault = result[REGISTRY_KEYS.FINAL_SCHEDULES] || {};
+            const direct = vault[scheduleId];
+            if (direct) {
+                resolve({ id: scheduleId, ...direct });
+                return;
+            }
+
+            const found = Object.entries(vault).find(([key, value]) => key === scheduleId || value?.id === scheduleId || value?.name === scheduleId);
+            if (found) {
+                resolve({ id: found[0], ...found[1] });
+                return;
+            }
+
+            resolve(null);
+        });
+    });
+}
+
+// ==========================================
+// FUNCTION 5C: Retrieve All Schedules
+// ==========================================
+/**
+ * Returns all saved schedules as an array for the calendar UI.
+ * @returns {Promise<Array>}
+ */
+async function getAllSchedules() {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage?.local) return resolve([]);
+
+        chrome.storage.local.get([REGISTRY_KEYS.FINAL_SCHEDULES], (result) => {
+            const vault = result[REGISTRY_KEYS.FINAL_SCHEDULES] || {};
+            const schedules = Object.entries(vault).map(([key, value]) => ({
+                id: value?.id || key,
+                name: value?.name || key,
+                ...value,
+                id: value?.id || key,
+                name: value?.name || key
+            }));
+            resolve(schedules);
         });
     });
 }

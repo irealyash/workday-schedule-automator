@@ -1,7 +1,11 @@
 
 const REGISTRY_KEYS2 = {
     UI_WORKSPACE2: 'ubc_ui_workspace_draft', // Key for Function 1 (UI draft preferences)
-    FINAL_SCHEDULES2: 'ubc_compiled_schedules' // Key for Functions 2, 3, 4 (Extracted Workday data)
+    FINAL_SCHEDULES2: 'ubc_compiled_schedules', // Key for saved schedules
+    COURSE_DATA2: 'ubcCourseData',
+    EXTRACTED_COURSES2: 'ubcExtractedCourses',
+    SCRAPED_COURSE_DATA2: 'scrapedCourseData',
+    ORIGIN_TAB_ID2: 'ubcOriginTabId'
 };
 /**
  * Normalizes UI inputs into the strict string format required by the automation.
@@ -71,11 +75,11 @@ const autoScrollToLoadAll = async (itemSelector) => {
 
     // 5. Zero-delay instant jump up (bypasses smooth scroll lag)
     if (scrollContainer.scrollTo) {
-        scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
+        scrollContainer.scrollTo({ top: 0, behavior: 'ausmoothto' });
     } else {
         scrollContainer.scrollTop = 0;
     }
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
     // Minimal stabilization pause so Workday frame updates before next keystroke
     await delay(150);
@@ -162,6 +166,30 @@ async function getUiWorkspace2() {
                 console.log("Storage Engine [6/6]: No UI configuration workspace found.");
                 resolve(null);
             }
+        });
+    });
+}
+
+async function openCalendarTab() {
+    try {
+        chrome.runtime.sendMessage({ action: 'OPEN_CALENDAR_PAGE' });
+    } catch (error) {
+        console.error('Failed to request calendar tab open:', error);
+    }
+}
+
+async function storeOriginTabId() {
+    return new Promise((resolve) => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const originTabId = tabs?.[0]?.id || null;
+            if (!originTabId) {
+                resolve(null);
+                return;
+            }
+
+            chrome.storage.session?.set
+                ? chrome.storage.session.set({ [REGISTRY_KEYS2.ORIGIN_TAB_ID2]: originTabId }, () => resolve(originTabId))
+                : chrome.storage.local.set({ [REGISTRY_KEYS2.ORIGIN_TAB_ID2]: originTabId }, () => resolve(originTabId));
         });
     });
 }
@@ -680,21 +708,21 @@ async function cousreDataExtraction() {
 
     console.log(allCourseData)
 
-    chrome.storage.local.set({ ubcExtractedCourses: allCourseData }, () => {
-        console.log("Course data saved to storage.");
-    });
-
-
-
-const finishNavigationAndOpenCalendar = async (allCourseData) => {
+    const finishNavigationAndOpenCalendar = async (allCourseData) => {
     console.log("Scraping complete! Routing to background handler...");
 
     // 1. Use chrome.storage.local so both scripts can safely access it
-    chrome.storage.local.set({ scrapedCourseData: allCourseData }, () => {
-        
-        // 2. Message the background script to open the file cleanly
-        chrome.runtime.sendMessage({ action: "OPEN_CALENDAR_PAGE" });
-    });
+    chrome.storage.local.set(
+        {
+            [REGISTRY_KEYS2.COURSE_DATA2]: allCourseData,
+            [REGISTRY_KEYS2.EXTRACTED_COURSES2]: allCourseData,
+            [REGISTRY_KEYS2.SCRAPED_COURSE_DATA2]: allCourseData
+        },
+        async () => {
+            await storeOriginTabId();
+            await openCalendarTab();
+        }
+    );
 };
 
 

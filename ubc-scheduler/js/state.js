@@ -75,6 +75,7 @@ const AppState = {
         const [courseData, formData, savedSchedules] = await Promise.all([
             Storage.getCourseData(),
             Storage.getFormData(),
+            // STORAGE READ: loads named schedules from chrome.storage.local → key "ubcSchedules"
             Storage.getAllSchedules()
         ]);
 
@@ -90,6 +91,7 @@ const AppState = {
 
     /** Set the schedule currently shown on the calendar. */
     setActiveSchedule(schedule) {
+        // In-memory only — live grid edits (including drag timing swaps) stay here until Save writes "ubcSchedules"
         this.setState({ activeSchedule: schedule });
     },
 
@@ -117,6 +119,7 @@ const AppState = {
 
     /** Add or replace schedule in savedSchedules list. */
     addSavedSchedule(schedule) {
+        // In-memory only — keeps UI list in sync after calendar.js handleSave() writes to "ubcSchedules"
         const schedules = [...this._state.savedSchedules];
         const existingIndex = schedules.findIndex(s => s.id === schedule.id);
 
@@ -131,6 +134,7 @@ const AppState = {
 
     /** Remove schedule by id from savedSchedules. */
     removeSavedSchedule(id) {
+        // In-memory only — mirrors delete from "ubcSchedules" after SavedSchedulesManager.handleDelete()
         const schedules = this._state.savedSchedules.filter(s => s.id !== id);
         this.setState({ savedSchedules: schedules });
     }

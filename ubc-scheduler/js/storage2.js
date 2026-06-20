@@ -11,13 +11,13 @@
 
 /** Chrome storage.local keys used by the extension. */
 const STORAGE_KEYS = {
-    SCHEDULES: 'ubcSchedules',
+    SCHEDULES: 'ubcSchedules', // Named saved schedules array (Save button in calendar header)
     COURSE_DATA: 'ubcExtractedCourses',
     FORM_DATA: 'ubcSchedulerData',
     PREFERENCES: 'ubcPreferences',
     ORIGIN_TAB: 'ubcOriginTabId',
-    PENDING_WORKDAY: 'ubcPendingWorkdaySchedules',
-    SCHEDULE_TO_LOAD: 'ubcScheduleToLoad'
+    PENDING_WORKDAY: 'ubcPendingWorkdaySchedules', // Checked schedules queued by Add to Workday
+    SCHEDULE_TO_LOAD: 'ubcScheduleToLoad' // One-time pointer when Load opens/focuses calendar
 };
 
 const Storage = {
@@ -50,6 +50,7 @@ const Storage = {
                         createdAt: schedules[index].createdAt,
                         updatedAt: Date.now()
                     };
+                    // STORAGE WRITE: update existing entry in "ubcSchedules"
                     await this._setStorage(STORAGE_KEYS.SCHEDULES, schedules);
                     return { success: true, schedule: schedules[index], isUpdate: true };
                 }
@@ -71,6 +72,7 @@ const Storage = {
             updatedAt: Date.now()
         };
         schedules.push(newSchedule);
+        // STORAGE WRITE: append new schedule to "ubcSchedules"
         await this._setStorage(STORAGE_KEYS.SCHEDULES, schedules);
 
         return { success: true, schedule: newSchedule, isUpdate: false };
@@ -97,6 +99,7 @@ const Storage = {
             return false;
         }
         
+        // STORAGE WRITE: remove deleted schedule from "ubcSchedules"
         await this._setStorage(STORAGE_KEYS.SCHEDULES, filtered);
         return true;
     },
@@ -139,6 +142,7 @@ const Storage = {
 
     /** Queue selected schedules for Workday enrollment automation. */
     async setPendingWorkdaySchedules(schedules) {
+        // STORAGE WRITE: Add to Workday — full checked schedule objects for navigation.js on the Workday tab
         await this._setStorage(STORAGE_KEYS.PENDING_WORKDAY, {
             scheduleIds: schedules.map(s => s.id),
             schedules,
@@ -153,11 +157,13 @@ const Storage = {
 
     /** Tell calendar which saved schedule to open on load. */
     async setScheduleToLoad(id) {
+        // STORAGE WRITE: Load button — calendar reads this on init or via storage.onChanged
         await this._setStorage(STORAGE_KEYS.SCHEDULE_TO_LOAD, id);
     },
 
     /** Clear schedule-to-load pointer after calendar consumes it. */
     async clearScheduleToLoad() {
+        // STORAGE WRITE: remove "ubcScheduleToLoad" after calendar has loaded the schedule
         await this._removeStorage(STORAGE_KEYS.SCHEDULE_TO_LOAD);
     },
 
@@ -178,6 +184,7 @@ const Storage = {
     /** Low-level: set one key in chrome.storage.local. */
     _setStorage(key, value) {
         return new Promise((resolve, reject) => {
+            // All calendar schedule persistence ultimately goes through this chrome.storage.local.set call
             chrome.storage.local.set({ [key]: value }, () => {
                 if (chrome.runtime.lastError) {
                     reject(chrome.runtime.lastError);
@@ -191,6 +198,7 @@ const Storage = {
     /** Low-level: remove one key from chrome.storage.local. */
     _removeStorage(key) {
         return new Promise((resolve, reject) => {
+            // Used to clear one-time keys (e.g. "ubcScheduleToLoad") after calendar consumes them
             chrome.storage.local.remove(key, () => {
                 if (chrome.runtime.lastError) {
                     reject(chrome.runtime.lastError);

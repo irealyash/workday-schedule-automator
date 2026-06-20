@@ -133,6 +133,7 @@ const SavedSchedulesManager = {
 
     async handleDelete(id) {
         const { deleteSchedule, showToast } = this._config;
+        // STORAGE WRITE: delegates to Storage.deleteSchedule / deleteCalendarSchedule → updates "ubcSchedules"
         const deleted = await deleteSchedule(id);
         if (!deleted) {
             showToast?.('Could not delete schedule.');
@@ -156,6 +157,7 @@ const SavedSchedulesManager = {
     async loadSchedule(scheduleId) {
         const { setScheduleToLoad, showToast } = this._config;
         if (setScheduleToLoad) {
+            // STORAGE WRITE: sets "ubcScheduleToLoad" so calendar knows which saved schedule to display
             await setScheduleToLoad(scheduleId);
         }
 
@@ -186,10 +188,12 @@ const SavedSchedulesManager = {
         }
 
         if (setPendingWorkdaySchedules) {
+            // STORAGE WRITE: persists checked schedules to "ubcPendingWorkdaySchedules" before focusing Workday tab
             await setPendingWorkdaySchedules(selected);
         }
 
         return new Promise((resolve) => {
+            // Tab switch only — navigation.js reads "ubcPendingWorkdaySchedules" on the Workday content script
             chrome.runtime.sendMessage({ action: 'FOCUS_WORKDAY_TAB' }, (response) => {
                 if (chrome.runtime.lastError) {
                     showToast?.('Could not switch to Workday tab.');

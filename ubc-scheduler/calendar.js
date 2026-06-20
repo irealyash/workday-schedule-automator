@@ -30,6 +30,7 @@ const CalendarApp = {
         const scheduleToLoadId = await Storage.getScheduleToLoad();
         if (scheduleToLoadId) {
             const saved = await Storage.getScheduleById(scheduleToLoadId);
+            // STORAGE WRITE: clears one-time load pointer after reading → key "ubcScheduleToLoad"
             await Storage.clearScheduleToLoad();
             if (saved) {
                 this.applyLoadedSchedule(saved);
@@ -98,14 +99,18 @@ const CalendarApp = {
             emptyContainer: this.dom.noSavedSchedules,
             addToWorkdayBtn: this.dom.addToWorkdayBtn,
             getSchedules: () => Storage.getAllSchedules(),
+            // STORAGE WRITE: removes one schedule from chrome.storage.local → key "ubcSchedules"
             deleteSchedule: (id) => Storage.deleteSchedule(id),
+            // STORAGE WRITE: queues checked schedules for Workday → key "ubcPendingWorkdaySchedules"
             setPendingWorkdaySchedules: (schedules) => Storage.setPendingWorkdaySchedules(schedules),
+            // STORAGE WRITE: tells calendar which saved schedule to open → key "ubcScheduleToLoad"
             setScheduleToLoad: (id) => Storage.setScheduleToLoad(id),
             showToast: (msg) => this.showToast(msg),
             onLoad: (schedule) => {
                 this.applyLoadedSchedule(schedule);
             },
             onDelete: (id) => {
+                // In-memory only — storage delete already ran via deleteSchedule callback above
                 AppState.removeSavedSchedule(id);
                 if (this.editingScheduleId === id) {
                     this.editingScheduleId = null;
@@ -126,12 +131,14 @@ const CalendarApp = {
         this.dom.classModal.addEventListener('click', (e) => {
             if (e.target === this.dom.classModal) this.closeClassModal();
         });
+        // Triggers SavedSchedulesManager.handleAddToWorkday() → writes "ubcPendingWorkdaySchedules" then focuses Workday tab
         this.dom.addToWorkdayBtn.addEventListener('click', () => {
             this.savedSchedulesManager.handleAddToWorkday();
         });
     },
 
     setupStorageListener() {
+        // Reacts when another surface (e.g. popup Load) writes "ubcScheduleToLoad" while calendar tab is already open
         chrome.storage.onChanged.addListener((changes, area) => {
             if (area !== 'local' || !changes.ubcScheduleToLoad?.newValue) return;
             this.loadScheduleFromStorage(changes.ubcScheduleToLoad.newValue);
@@ -140,6 +147,7 @@ const CalendarApp = {
 
     async loadScheduleFromStorage(id) {
         const saved = await Storage.getScheduleById(id);
+        // STORAGE WRITE: clears one-time load pointer from chrome.storage.local → key "ubcScheduleToLoad"
         await Storage.clearScheduleToLoad();
         if (saved) {
             this.applyLoadedSchedule(saved);
@@ -295,6 +303,7 @@ const CalendarApp = {
         const schedule = AppState.get('activeSchedule');
         if (!schedule) return;
 
+        // In-memory only — timing/section changes from drag are NOT written to chrome.storage until handleSave()
         const updatedSections = schedule.sections.map(s => {
             if (s.id !== oldSection.id) return s;
             return {
@@ -335,6 +344,7 @@ const CalendarApp = {
         const name = this.dom.scheduleNameInput.value.trim() || 'Untitled Schedule';
 
         try {
+            // STORAGE WRITE: persists named schedule to chrome.storage.local → key "ubcSchedules" (via storage2.js)
             const result = await Storage.saveScheduleWithValidation(
                 { ...schedule, name },
                 this.editingScheduleId,
@@ -346,6 +356,7 @@ const CalendarApp = {
                 return;
             }
 
+            // In-memory only: mirrors the schedule just written to "ubcSchedules" for UI re-render (not a second storage write)
             AppState.addSavedSchedule(result.schedule);
             this.editingScheduleId = result.schedule.id;
             this.originalScheduleName = result.schedule.name;

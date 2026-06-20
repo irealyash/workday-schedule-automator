@@ -122,13 +122,59 @@ Save rules (`storage2.js`):
 - Same id + same name → update in place.
 - Same id + new name → create new entry (preserves original).
 
-### Popup side (legacy vault — not wired to calendar UI yet)
+### Popup saved schedules (same data as calendar)
+
+Both the **calendar** saved-schedules screen and the **popup** saved-schedules screen read from **`ubcSchedules`** via `getCalendarSchedules()` in `storage.js` / `Storage.getAllSchedules()` in `storage2.js`. Shared UI logic lives in `js/savedSchedulesManager.js`.
+
+### Legacy popup vault (unused by saved-schedules UI)
 
 | Storage key | API | Shape | Written by | Read by |
 |---|---|---|---|---|
-| `ubc_compiled_schedules` | `chrome.storage.local` | **Object** keyed by schedule name/id | `storage.js` → `saveFinalSchedule()` etc. | `storage.js` → `getAllSchedules()` |
+| `ubc_compiled_schedules` | `chrome.storage.local` | **Object** keyed by schedule name/id | `storage.js` → `saveFinalSchedule()` etc. | Legacy helpers only |
 
-The popup “Saved Schedules” screen is not yet connected to either store.
+---
+
+## Pending Workday schedules (Add to Workday)
+
+When the user selects one or more saved schedules and clicks **Add to Workday** (calendar or popup):
+
+```
+User selects schedules (multi-select checkboxes)
+  → SavedSchedulesManager.handleAddToWorkday()
+  → chrome.storage.local.set({ ubcPendingWorkdaySchedules })
+  → background.js FOCUS_WORKDAY_TAB
+  → Workday tab focused
+  → navigation.js receives PENDING_SCHEDULES_READY
+  → reads ubcPendingWorkdaySchedules from storage
+```
+
+| Storage key | API | Written by | Read by |
+|---|---|---|---|
+| `ubcPendingWorkdaySchedules` | `chrome.storage.local` | `SavedSchedulesManager` via `setPendingWorkdaySchedules()` | `navigation.js` → `handlePendingWorkdaySchedules()` |
+
+Payload shape:
+
+```js
+{
+  scheduleIds: ["uuid-1", "uuid-2"],
+  schedules: [ /* full schedule objects from ubcSchedules */ ],
+  queuedAt: 1710000000000
+}
+```
+
+Enrollment automation on Workday will consume this payload in a future step. Until then, `navigation.js` logs the pending schedules when the Workday tab is focused.
+
+---
+
+## Schedule to load (popup/calendar Load button)
+
+When the user clicks **Load** on a saved schedule (popup opens calendar; calendar loads inline):
+
+| Storage key | API | Written by | Read by |
+|---|---|---|---|
+| `ubcScheduleToLoad` | `chrome.storage.local` | `setScheduleToLoad(id)` | `calendar.js` on init → `Storage.getScheduleToLoad()` |
+
+After the calendar loads the schedule, it clears this key via `Storage.clearScheduleToLoad()`.
 
 ---
 
@@ -183,7 +229,7 @@ Drag changes are **in-memory only** until Save.
 |---|---|---|---|
 | `ubcOriginTabId` | `chrome.storage.session` (fallback: `local`) | `navigation.js` → `storeOriginTabId()` | `navigation2.js` → `Navigation.goBack()` |
 
-Stores the Workday tab id so “Back to Extension” on the saved-schedules screen can focus that tab and close the calendar tab.
+Stores the Workday tab id so **Add to Workday** can focus the correct tab via `background.js` → `FOCUS_WORKDAY_TAB`.
 
 ---
 
@@ -194,9 +240,12 @@ Stores the Workday tab id so “Back to Extension” on the saved-schedules scre
 | Where is scraped course data stored? | `chrome.storage.local` → `ubcExtractedCourses` (and two duplicate keys) |
 | Where does the calendar read it? | `calendar.js` → `AppState.init()` → `Storage.getCourseData()` |
 | Where are named saved schedules? | `chrome.storage.local` → `ubcSchedules` (array) |
+| Where does popup list saved schedules? | Same key → `getCalendarSchedules()` in `storage.js` |
 | Where is the schedule being edited? | `AppState.activeSchedule` (memory) |
 | When do drag timing changes persist? | Only after clicking **Save** → `ubcSchedules` |
 | Where is popup form config? | `chrome.storage.local` → `ubc_ui_workspace_draft` |
+| Where are checked schedules sent for Workday? | `chrome.storage.local` → `ubcPendingWorkdaySchedules` |
+| How does calendar know which schedule to open? | `chrome.storage.local` → `ubcScheduleToLoad` (cleared after load) |
 
 ---
 
@@ -204,11 +253,13 @@ Stores the Workday tab id so “Back to Extension” on the saved-schedules scre
 
 | File | Role |
 |---|---|
-| `js/navigation.js` | Scrapes Workday; writes course data + origin tab; opens calendar |
-| `js/background.js` | Opens `calendar.html` in a new tab |
+| `js/navigation.js` | Scrapes Workday; writes course data + origin tab; reads pending Workday schedules |
+| `js/background.js` | Opens/focuses calendar; focuses Workday tab for Add to Workday |
+| `js/savedSchedulesManager.js` | Shared saved-schedules list UI (calendar + popup) |
 | `calendar.js` | Loads storage, generates schedule, renders UI, handles save/drag |
+| `popup.js` | Popup saved-schedules screen wired to same manager |
 | `js/storage2.js` | Calendar-side read/write API |
-| `js/storage.js` | Popup-side read/write API (separate schedule vault) |
+| `js/storage.js` | Popup-side read/write API (`getCalendarSchedules`, pending workday helpers) |
 | `js/state.js` | In-memory reactive store (`activeSchedule`, `courseData`, etc.) |
 | `js/dragmanager.js` | Pointer drag; calls back into `calendar.js` on drop |
 | `js/layoutengine.js` | Block positioning and conflict layout |

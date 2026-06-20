@@ -350,3 +350,85 @@ async function getAllSchedules() {
         });
     });
 }
+
+// ==========================================
+// Calendar schedules (ubcSchedules array — same store as calendar UI)
+// ==========================================
+
+const CALENDAR_SCHEDULES_KEY = 'ubcSchedules';
+const PENDING_WORKDAY_KEY = 'ubcPendingWorkdaySchedules';
+const SCHEDULE_TO_LOAD_KEY = 'ubcScheduleToLoad';
+
+async function getCalendarSchedules() {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage?.local) return resolve([]);
+
+        chrome.storage.local.get([CALENDAR_SCHEDULES_KEY], (result) => {
+            resolve(result[CALENDAR_SCHEDULES_KEY] || []);
+        });
+    });
+}
+
+async function deleteCalendarSchedule(id) {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage?.local) return resolve(false);
+
+        chrome.storage.local.get([CALENDAR_SCHEDULES_KEY], (result) => {
+            const schedules = result[CALENDAR_SCHEDULES_KEY] || [];
+            const filtered = schedules.filter(s => s.id !== id);
+            if (filtered.length === schedules.length) return resolve(false);
+
+            chrome.storage.local.set({ [CALENDAR_SCHEDULES_KEY]: filtered }, () => resolve(true));
+        });
+    });
+}
+
+async function setPendingWorkdaySchedules(schedules) {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage?.local) return resolve(false);
+
+        chrome.storage.local.set({
+            [PENDING_WORKDAY_KEY]: {
+                scheduleIds: schedules.map(s => s.id),
+                schedules,
+                queuedAt: Date.now()
+            }
+        }, () => resolve(true));
+    });
+}
+
+async function getPendingWorkdaySchedules() {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage?.local) return resolve(null);
+
+        chrome.storage.local.get([PENDING_WORKDAY_KEY], (result) => {
+            resolve(result[PENDING_WORKDAY_KEY] ?? null);
+        });
+    });
+}
+
+async function setScheduleToLoad(id) {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage?.local) return resolve(false);
+
+        chrome.storage.local.set({ [SCHEDULE_TO_LOAD_KEY]: id }, () => resolve(true));
+    });
+}
+
+async function clearScheduleToLoad() {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage?.local) return resolve(false);
+
+        chrome.storage.local.remove(SCHEDULE_TO_LOAD_KEY, () => resolve(true));
+    });
+}
+
+async function getScheduleToLoad() {
+    return new Promise((resolve) => {
+        if (typeof chrome === 'undefined' || !chrome.storage?.local) return resolve(null);
+
+        chrome.storage.local.get([SCHEDULE_TO_LOAD_KEY], (result) => {
+            resolve(result[SCHEDULE_TO_LOAD_KEY] ?? null);
+        });
+    });
+}

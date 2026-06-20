@@ -11,8 +11,8 @@ const CalendarApp = {
 
     editingScheduleId: null,
     originalScheduleName: null,
-    selectedSavedScheduleId: null,
     gridBuilt: false,
+    savedSchedulesManager: null,
 
     dom: {},
 
@@ -22,8 +22,20 @@ const CalendarApp = {
         await AppState.init();
 
         this.setupGlobalDragCallbacks();
+        this.setupSavedSchedulesManager();
         this.setupEventListeners();
+        this.setupStorageListener();
         this.buildCalendarGrid();
+
+        const scheduleToLoadId = await Storage.getScheduleToLoad();
+        if (scheduleToLoadId) {
+            const saved = await Storage.getScheduleById(scheduleToLoadId);
+            await Storage.clearScheduleToLoad();
+            if (saved) {
+                this.applyLoadedSchedule(saved);
+                return;
+            }
+        }
 
         const { courseData, preferences } = AppState.getState();
         const courseCount = Object.keys(courseData || {}).length;
@@ -58,7 +70,7 @@ const CalendarApp = {
             scheduleNameInput: document.getElementById('scheduleNameInput'),
             saveScheduleBtn: document.getElementById('saveScheduleBtn'),
             savedSchedulesBtn: document.getElementById('savedSchedulesBtn'),
-            backToExtensionBtn: document.getElementById('backToExtensionBtn'),
+            backToCalendarBtn: document.getElementById('backToCalendarBtn'),
             savedSchedulesList: document.getElementById('savedSchedulesList'),
             noSavedSchedules: document.getElementById('noSavedSchedules'),
             addToWorkdayBtn: document.getElementById('addToWorkdayBtn'),
@@ -79,17 +91,59 @@ const CalendarApp = {
         };
     },
 
+    setupSavedSchedulesManager() {
+        SavedSchedulesManager.init({
+            variant: 'calendar',
+            listContainer: this.dom.savedSchedulesList,
+            emptyContainer: this.dom.noSavedSchedules,
+            addToWorkdayBtn: this.dom.addToWorkdayBtn,
+            getSchedules: () => Storage.getAllSchedules(),
+            deleteSchedule: (id) => Storage.deleteSchedule(id),
+            setPendingWorkdaySchedules: (schedules) => Storage.setPendingWorkdaySchedules(schedules),
+            setScheduleToLoad: (id) => Storage.setScheduleToLoad(id),
+            showToast: (msg) => this.showToast(msg),
+            onLoad: (schedule) => {
+                this.applyLoadedSchedule(schedule);
+            },
+            onDelete: (id) => {
+                AppState.removeSavedSchedule(id);
+                if (this.editingScheduleId === id) {
+                    this.editingScheduleId = null;
+                }
+            }
+        });
+        this.savedSchedulesManager = SavedSchedulesManager;
+    },
+
     setupEventListeners() {
         this.dom.saveScheduleBtn.addEventListener('click', () => this.handleSave());
         this.dom.savedSchedulesBtn.addEventListener('click', () => this.toggleSavedSchedulesScreen());
-        this.dom.backToExtensionBtn.addEventListener('click', () => Navigation.goBack());
+        this.dom.backToCalendarBtn.addEventListener('click', () => {
+            AppState.navigateTo('calendar');
+            this.showScreen('calendar');
+        });
         this.dom.modalCloseBtn.addEventListener('click', () => this.closeClassModal());
         this.dom.classModal.addEventListener('click', (e) => {
             if (e.target === this.dom.classModal) this.closeClassModal();
         });
         this.dom.addToWorkdayBtn.addEventListener('click', () => {
-            this.showToast('Add to Workday is not yet implemented.');
+            this.savedSchedulesManager.handleAddToWorkday();
         });
+    },
+
+    setupStorageListener() {
+        chrome.storage.onChanged.addListener((changes, area) => {
+            if (area !== 'local' || !changes.ubcScheduleToLoad?.newValue) return;
+            this.loadScheduleFromStorage(changes.ubcScheduleToLoad.newValue);
+        });
+    },
+
+    async loadScheduleFromStorage(id) {
+        const saved = await Storage.getScheduleById(id);
+        await Storage.clearScheduleToLoad();
+        if (saved) {
+            this.applyLoadedSchedule(saved);
+        }
     },
 
     setupGlobalDragCallbacks() {
@@ -320,65 +374,11 @@ const CalendarApp = {
         this.dom.savedSchedulesScreen.hidden = screen !== 'savedSchedules';
     },
 
-    renderSavedSchedulesList() {
-        const schedules = AppState.get('savedSchedules') || [];
-        this.dom.savedSchedulesList.innerHTML = '';
-
-        if (schedules.length === 0) {
-            this.dom.noSavedSchedules.hidden = false;
-            this.dom.addToWorkdayBtn.disabled = true;
-            return;
-        }
-
-        this.dom.noSavedSchedules.hidden = true;
-
-        schedules.forEach(schedule => {
-            const card = document.createElement('div');
-            card.className = 'schedule-card';
-            if (schedule.id === this.selectedSavedScheduleId) {
-                card.classList.add('selected');
-            }
-
-            const courseCount = schedule.metadata?.courseCount
-                || new Set((schedule.sections || []).map(s => s.courseCode)).size;
-
-            card.innerHTML = `
-                <div class="schedule-card-checkbox">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                        <polyline points="20,6 9,17 4,12"/>
-                    </svg>
-                </div>
-                <div class="schedule-card-info">
-                    <div class="schedule-card-name">${this.escapeHtml(schedule.name)}</div>
-                    <div class="schedule-card-meta">${courseCount} courses · ${schedule.totalCredits || 0} credits</div>
-                </div>
-                <div class="schedule-card-actions">
-                    <button type="button" class="schedule-card-btn load-btn">Load</button>
-                    <button type="button" class="schedule-card-btn delete-btn">Delete</button>
-                </div>
-            `;
-
-            card.querySelector('.load-btn').addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.loadSavedSchedule(schedule);
-            });
-
-            card.querySelector('.delete-btn').addEventListener('click', async (e) => {
-                e.stopPropagation();
-                await this.deleteSavedSchedule(schedule.id);
-            });
-
-            card.addEventListener('click', () => {
-                this.selectedSavedScheduleId = schedule.id;
-                this.dom.addToWorkdayBtn.disabled = false;
-                this.renderSavedSchedulesList();
-            });
-
-            this.dom.savedSchedulesList.appendChild(card);
-        });
+    async renderSavedSchedulesList() {
+        await this.savedSchedulesManager.renderList();
     },
 
-    loadSavedSchedule(schedule) {
+    applyLoadedSchedule(schedule) {
         AppState.setActiveSchedule(schedule);
         this.editingScheduleId = schedule.id;
         this.originalScheduleName = schedule.name;
@@ -386,25 +386,6 @@ const CalendarApp = {
         AppState.navigateTo('calendar');
         this.showScreen('calendar');
         this.render();
-    },
-
-    async deleteSavedSchedule(id) {
-        const deleted = await Storage.deleteSchedule(id);
-        if (!deleted) {
-            this.showToast('Could not delete schedule.');
-            return;
-        }
-
-        AppState.removeSavedSchedule(id);
-        if (this.selectedSavedScheduleId === id) {
-            this.selectedSavedScheduleId = null;
-            this.dom.addToWorkdayBtn.disabled = true;
-        }
-        if (this.editingScheduleId === id) {
-            this.editingScheduleId = null;
-        }
-        this.renderSavedSchedulesList();
-        this.showToast('Schedule deleted.');
     },
 
     openClassModal(section) {

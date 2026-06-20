@@ -13,6 +13,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = document.getElementById('submit-btn');
     const validationErrorEl = document.getElementById('validation-error');
     const popupForm = document.getElementById('schedulerForm');
+    const saveSchedulePopupBtn = document.getElementById('saveSchedulePopupBtn');
+    const savedSchedulesScreen = document.getElementById('saved-schedules-screen');
+    const backToMainBtn = document.getElementById('backToMainBtn');
+    const savedSchedulesListPopup = document.getElementById('savedSchedulesListPopup');
+    const noSavedPopup = document.getElementById('noSavedPopup');
+    const addToWorkdayBtnPopup = document.getElementById('addToWorkdayBtnPopup');
     console.log('popup.js: DOMContentLoaded');
 
     
@@ -418,6 +424,62 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+
+    // ==========================================
+    // 5. SAVED SCHEDULES SCREEN
+    // ==========================================
+
+    function showPopupToast(message) {
+        const existing = document.querySelector('.toast-popup.saved-toast');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.className = 'toast-popup saved-toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    SavedSchedulesManager.init({
+        variant: 'popup',
+        listContainer: savedSchedulesListPopup,
+        emptyContainer: noSavedPopup,
+        addToWorkdayBtn: addToWorkdayBtnPopup,
+        getSchedules: () => getCalendarSchedules(),
+        deleteSchedule: (id) => deleteCalendarSchedule(id),
+        setPendingWorkdaySchedules: (schedules) => setPendingWorkdaySchedules(schedules),
+        setScheduleToLoad: (id) => setScheduleToLoad(id),
+        showToast: showPopupToast
+    });
+
+    async function openSavedSchedulesScreen() {
+        document.getElementById('main-content').hidden = true;
+        savedSchedulesScreen.hidden = false;
+        await SavedSchedulesManager.renderList();
+    }
+
+    function closeSavedSchedulesScreen() {
+        savedSchedulesScreen.hidden = true;
+        document.getElementById('main-content').hidden = false;
+    }
+
+    if (saveSchedulePopupBtn) {
+        saveSchedulePopupBtn.addEventListener('click', () => {
+            openSavedSchedulesScreen();
+        });
+    }
+
+    if (backToMainBtn) {
+        backToMainBtn.addEventListener('click', () => {
+            closeSavedSchedulesScreen();
+        });
+    }
+
+    if (addToWorkdayBtnPopup) {
+        addToWorkdayBtnPopup.addEventListener('click', () => {
+            SavedSchedulesManager.handleAddToWorkday();
+        });
+    }
 
     // Initialize extension frame data state instantly upon launch
     loadFormState();

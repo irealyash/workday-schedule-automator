@@ -15,7 +15,9 @@ const STORAGE_KEYS = {
     COURSE_DATA: 'ubcExtractedCourses',
     FORM_DATA: 'ubcSchedulerData',
     PREFERENCES: 'ubcPreferences',
-    ORIGIN_TAB: 'ubcOriginTabId'
+    ORIGIN_TAB: 'ubcOriginTabId',
+    PENDING_WORKDAY: 'ubcPendingWorkdaySchedules',
+    SCHEDULE_TO_LOAD: 'ubcScheduleToLoad'
 };
 
 const Storage = {
@@ -133,6 +135,35 @@ const Storage = {
     /** Remove stored origin tab id. */
     async clearOriginTab() {
         await this._removeStorage(STORAGE_KEYS.ORIGIN_TAB);
+    },
+
+    /** Queue selected schedules for Workday enrollment automation. */
+    async setPendingWorkdaySchedules(schedules) {
+        await this._setStorage(STORAGE_KEYS.PENDING_WORKDAY, {
+            scheduleIds: schedules.map(s => s.id),
+            schedules,
+            queuedAt: Date.now()
+        });
+    },
+
+    /** Read queued Workday schedules payload. */
+    async getPendingWorkdaySchedules() {
+        return (await this._getStorage(STORAGE_KEYS.PENDING_WORKDAY)) || null;
+    },
+
+    /** Tell calendar which saved schedule to open on load. */
+    async setScheduleToLoad(id) {
+        await this._setStorage(STORAGE_KEYS.SCHEDULE_TO_LOAD, id);
+    },
+
+    /** Clear schedule-to-load pointer after calendar consumes it. */
+    async clearScheduleToLoad() {
+        await this._removeStorage(STORAGE_KEYS.SCHEDULE_TO_LOAD);
+    },
+
+    /** Read schedule id queued for calendar load. */
+    async getScheduleToLoad() {
+        return await this._getStorage(STORAGE_KEYS.SCHEDULE_TO_LOAD);
     },
 
     /** Low-level: get one key from chrome.storage.local. */

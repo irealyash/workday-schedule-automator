@@ -199,8 +199,33 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         // NOW this will work because 'document' is the Workday page!
         navigateTillCourseSearch();
+        return;
+    }
+
+    if (request.action === 'PENDING_SCHEDULES_READY') {
+        handlePendingWorkdaySchedules();
+        sendResponse?.({ received: true });
+        return true;
     }
 });
+
+async function handlePendingWorkdaySchedules() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['ubcPendingWorkdaySchedules'], (result) => {
+            const pending = result.ubcPendingWorkdaySchedules;
+            if (pending?.schedules?.length) {
+                console.log(
+                    'UBC Scheduler: Pending Workday schedules ready for enrollment:',
+                    pending.schedules.length,
+                    pending
+                );
+            } else {
+                console.log('UBC Scheduler: No pending Workday schedules in storage.');
+            }
+            resolve(pending ?? null);
+        });
+    });
+}
 
 
 

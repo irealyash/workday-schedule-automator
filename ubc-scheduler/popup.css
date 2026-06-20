@@ -1,0 +1,950 @@
+/* === UBC Scheduler - Refined Premium UI (Uniformly Spaced) === */
+/* Force the browser's own popup container to be transparent */
+html, body {
+    background: transparent !important;
+    margin: 0;
+    padding: 0;
+}
+
+
+
+/* Ensure the popup container doesn't have a background */
+.popup-container {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+html, body {
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+}
+
+:root {
+    /* Refined blue gradient palette - subtle depth */
+    --bg-deep: #0c1929;
+    --bg-mid: #12233d;
+    --bg-elevated: #1a3152;
+    --accent-primary: #2563eb;
+    --accent-primary-hover: #3b82f6;
+    --accent-secondary: #1e40af;
+    --accent-glow: #60a5fa;
+    --accent-muted: #93c5fd;
+
+    /* WCAG AA compliant text - 4.5:1+ on dark */
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-tertiary: #94a3b8;
+
+    /* Glassmorphism */
+    --glass-bg: rgba(255, 255, 255, 0.06);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-hover: rgba(255, 255, 255, 0.1);
+
+    /* Depth shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3);
+    --shadow-glow: 0 0 0 1px rgba(37, 99, 235, 0.2);
+
+    /* Radius - softer, modern */
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 16px;
+
+    /* Success/accent */
+    --success: #10b981;
+    --success-bg: rgba(16, 185, 129, 0.15);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    border-radius: 16px;
+    overflow: auto;
+}
+
+html.working {
+    background: transparent !important;
+    overflow: visible;
+}
+
+body {
+    width: 400px;
+    font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    overflow-x: hidden;
+    overflow-y: auto;
+    position: relative;
+    cursor: default;
+    border-radius: 16px;
+}
+
+/* Animated gradient background - refined, subtle */
+.gradient-bg {
+    position: fixed;
+    inset: 0;
+    background:
+        linear-gradient(165deg, var(--bg-deep) 0%, var(--bg-mid) 40%, #0f2744 70%, var(--bg-deep) 100%);
+    background-size: 200% 200%;
+    animation: gradientShift 15s ease infinite;
+    z-index: 0;
+}
+
+.gradient-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse 70% 40% at 50% -10%, rgba(37, 99, 235, 0.15), transparent 60%),
+        radial-gradient(ellipse 50% 30% at 90% 60%, rgba(30, 64, 175, 0.08), transparent 50%);
+    pointer-events: none;
+}
+
+@keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+/* Main container - Uniformly expanded layout breathing room */
+.popup-container {
+    position: relative;
+    z-index: 1;
+    padding: 24px 20px 26px; /* Increased outer bounds */
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 18px; /* Lifted up from 15px for structured breathing room */
+    flex-shrink: 0;
+}
+
+/* Header */
+.header {
+    text-align: center;
+    margin-bottom: 4px;
+}
+
+.title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+
+.title-icon {
+    font-size: 1.35rem;
+    animation: bounce 2.5s ease-in-out infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+}
+
+.subtitle {
+    font-size: 0.85rem;
+    color: var(--text-tertiary);
+    font-weight: 400;
+    margin-top: 6px;
+}
+
+/* Sections - Balanced stack rhythm */
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px; /* Uniform internal gap */
+}
+
+.section-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 2px; /* Slight extra trace spacing below label */
+}
+
+.animate-in {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: slideIn 0.5s ease forwards;
+    animation-delay: var(--delay, 0s);
+}
+
+@keyframes slideIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Option Grids */
+.campus-options,
+.term-options,
+.year-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px; /* Slightly wider track spacing between options */
+}
+
+.bubble-option {
+    flex: 1;
+    min-width: 120px;
+    cursor: pointer;
+}
+
+.bubble-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Options Buttons - Uniform vertical and horizontal luxury track padding */
+.bubble-btn {
+    display: block;
+    padding: 12px 16px; /* Uniformly deepened padding */
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-sm);
+}
+
+.bubble-btn:hover {
+    background: var(--glass-hover);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.bubble-btn:active {
+    transform: translateY(0);
+    transition-duration: 0.1s;
+}
+
+/* Selected state - secondary emphasis */
+.bubble-option input:checked+.bubble-btn {
+    background: rgba(37, 99, 235, 0.25);
+    border-color: rgba(37, 99, 235, 0.5);
+    box-shadow:
+        var(--shadow-sm),
+        0 0 0 1px rgba(37, 99, 235, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.bubble-option input:checked+.bubble-btn:hover {
+    background: rgba(37, 99, 235, 0.3);
+    border-color: rgba(37, 99, 235, 0.6);
+    box-shadow:
+        var(--shadow-md),
+        0 0 0 1px rgba(37, 99, 235, 0.25);
+}
+
+/* Preference toggles - stronger selected state */
+.toggle-row .bubble-option input:checked+.bubble-btn {
+    background: rgba(37, 99, 235, 0.4);
+    border-color: var(--accent-primary);
+    box-shadow:
+        0 0 0 2px rgba(37, 99, 235, 0.35),
+        0 0 12px rgba(37, 99, 235, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toggle-row .bubble-option input:checked+.bubble-btn:hover {
+    background: rgba(37, 99, 235, 0.5);
+    box-shadow:
+        0 0 0 2px rgba(37, 99, 235, 0.45),
+        0 0 16px rgba(37, 99, 235, 0.25);
+}
+
+/* Course inputs */
+.course-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Aligned row track gap */
+}
+
+.course-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    /* Cleaned up timing and curve for snappy rendering */
+    animation: courseRowReveal 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    will-change: transform, opacity;
+}
+
+@keyframes courseRowReveal {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.course-input {
+    flex: 1;
+    padding: 12px 16px; 
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 0.92rem;
+    font-family: inherit;
+    /* CRITICAL CHANGE: Avoid 'all' to prevent width/layout snapping glitches */
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-sm);
+    cursor: text;
+}
+
+.course-input::placeholder {
+    color: var(--text-tertiary);
+}
+
+.course-input:hover {
+    background: var(--glass-hover);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.course-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow:
+        var(--shadow-sm),
+        0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.course-preview {
+    font-size: 0.75rem;
+    color: var(--accent-muted);
+    min-width: 80px;
+    font-weight: 500;
+}
+
+/* Add course button */
+.addCourseBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px; /* Proportional expansion */
+    background: transparent;
+    border: 1px dashed var(--glass-border);
+    border-radius: var(--radius-md);
+    color: var(--text-tertiary);
+    font-size: 0.88rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    margin-top: 4px;
+}
+
+.addCourseBtn:hover {
+    border-color: rgba(37, 99, 235, 0.5);
+    color: var(--accent-muted);
+    background: rgba(37, 99, 235, 0.08);
+    transform: translateY(-1px);
+}
+
+.addCourseBtn:active {
+    transform: translateY(0);
+}
+
+.plus-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    transition: transform 0.3s ease;
+}
+
+.addCourseBtn:hover .plus-icon {
+    transform: rotate(90deg);
+}
+
+.plus-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.year-options {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.year-options .bubble-option {
+    min-width: 140px;
+}
+
+/* Saved schedules link - tertiary button */
+.saved-schedules-link {
+    display: block;
+    width: 100%;
+    padding: 12px 16px; /* Harmonized tracking */
+    margin-top: 10px;
+    background: transparent;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    color: var(--text-tertiary);
+    font-size: 0.88rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.saved-schedules-link:hover {
+    border-color: rgba(37, 99, 235, 0.5);
+    color: var(--accent-muted);
+}
+
+/* Saved Schedules Screen (popup) */
+.screen.saved-screen {
+    display: flex;
+    flex-direction: column;
+    gap: 16px; /* Expanded clean grid spacing */
+}
+
+.saved-screen[hidden] {
+    display: none !important;
+}
+
+.saved-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.back-btn-popup {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.back-btn-popup:hover {
+    background: var(--glass-hover);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.saved-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.saved-schedules-list-popup {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 280px;
+}
+
+.saved-schedules-list-popup::-webkit-scrollbar {
+    width: 6px;
+}
+
+.saved-schedules-list-popup::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 3px;
+}
+
+.schedule-card-popup {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.schedule-card-popup:hover {
+    background: var(--glass-hover);
+}
+
+.schedule-card-popup.selected {
+    border-color: var(--accent-primary);
+    background: rgba(37, 99, 235, 0.15);
+}
+
+.schedule-card-checkbox-popup {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--glass-border);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: transparent;
+}
+
+.schedule-card-popup.selected .schedule-card-checkbox-popup {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+}
+
+.schedule-card-checkbox-popup svg {
+    width: 10px;
+    height: 10px;
+}
+
+.schedule-card-info-popup {
+    flex: 1;
+    min-width: 0;
+}
+
+.schedule-card-name-popup {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.schedule-card-meta-popup {
+    font-size: 0.72rem;
+    color: var(--text-tertiary);
+    margin-top: 4px;
+}
+
+.schedule-card-actions-popup {
+    display: flex;
+    gap: 8px;
+}
+
+.schedule-card-btn-popup {
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s ease;
+}
+
+.schedule-card-btn-popup:hover {
+    background: var(--glass-hover);
+}
+
+.schedule-card-btn-popup.load-btn {
+    color: var(--accent-glow);
+}
+
+.schedule-card-btn-popup.delete-btn {
+    color: #f87171;
+}
+
+.no-saved-popup {
+    text-align: center;
+    padding: 24px;
+    color: var(--text-tertiary);
+    font-size: 0.88rem;
+}
+
+.saved-preview-popup {
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    margin-top: 8px;
+}
+
+.saved-preview-title {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+    margin-bottom: 6px;
+}
+
+.saved-preview-name {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.saved-preview-courses {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.preview-course-tag {
+    background: var(--glass-bg);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+}
+
+.saved-actions-popup {
+    padding-top: 12px;
+    border-top: 1px solid var(--glass-border);
+}
+
+.add-to-workday-btn-popup {
+    width: 100%;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+    border: none;
+    border-radius: var(--radius-md);
+    color: white;
+    font-size: 0.88rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.add-to-workday-btn-popup:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.add-to-workday-btn-popup:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.toast-popup {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 20px;
+    background: var(--success);
+    color: white;
+    border-radius: var(--radius-md);
+    font-size: 0.85rem;
+    font-weight: 500;
+    z-index: 10000;
+    transition: opacity 0.3s ease;
+}
+
+/* Form styling */
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* Form actions row - Generate and Save side by side */
+.form-actions-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.form-actions-row .submit-btn {
+    flex: 1;
+}
+
+/* Submit button text styling */
+.submit-text {
+    display: block;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+/* Primary button - submit */
+.submit-btn {
+    position: relative;
+    overflow: hidden;
+    padding: 14px 22px; /* Deepened button focus */
+    background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+    border: none;
+    border-radius: var(--radius-lg);
+    color: white;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow:
+        var(--shadow-md),
+        0 1px 0 rgba(255, 255, 255, 0.1) inset;
+}
+
+.submit-btn:hover {
+    background: linear-gradient(135deg, var(--accent-primary-hover) 0%, var(--accent-primary) 100%);
+    transform: translateY(-2px);
+    box-shadow:
+        var(--shadow-lg),
+        0 4px 16px rgba(37, 99, 235, 0.35),
+        0 1px 0 rgba(255, 255, 255, 0.1) inset;
+}
+
+.submit-btn:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+}
+
+.save-schedule-btn {
+    background: var(--glass-bg) !important;
+    border: 1px solid var(--glass-border) !important;
+}
+
+.save-schedule-btn:hover {
+    background: var(--glass-hover) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.submit-shine {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg,
+            transparent,
+            rgba(255, 255, 255, 0.2),
+            transparent);
+    animation: shine 4s ease-in-out infinite;
+}
+
+@keyframes shine {
+    0% { left: -100%; }
+    15%, 100% { left: 150%; }
+}
+
+/* Remove button - Dynamically locks perfectly to input box geometry */
+.remove-course-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    width: 44px; /* Widened slightly for balanced touch footprint */
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: var(--radius-md);
+    color: #f87171;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.remove-course-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.4);
+    transform: scale(1.02);
+}
+
+.remove-course-btn:active {
+    transform: scale(0.98);
+}
+
+.remove-course-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.error-message {
+    padding: 12px 16px;
+    margin-bottom: 14px;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: var(--radius-md);
+    color: #fca5a5;
+    font-size: 0.88rem;
+}
+
+.error-message[hidden] {
+    display: none !important;
+}
+
+.validation-error {
+    font-size: 0.78rem;
+    color: #f87171;
+    margin-bottom: 8px;
+    min-height: 1.2em;
+}
+
+.validation-error[hidden] {
+    display: none !important;
+}
+
+.submit-btn.shake {
+    animation: shake 0.4s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+}
+
+/* Working state - minimized UI during automation */
+.working-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 0;
+    min-height: 36px;
+    animation: workingFadeIn 0.3s ease forwards;
+}
+
+.working-state[hidden] {
+    display: none !important;
+}
+
+@keyframes workingFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.working-state-inner {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 22px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-md);
+}
+
+.working-dots {
+    display: flex;
+    gap: 4px;
+}
+
+.working-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-glow);
+    animation: workingBounce 1.4s ease-in-out infinite both;
+}
+
+.working-dots span:nth-child(1) { animation-delay: -0.32s; }
+.working-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes workingBounce {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+    40% { transform: scale(1); opacity: 1; }
+}
+
+.working-text {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: 0.02em;
+    line-height: 1.4;
+}
+
+.working-emoji {
+    display: inline-block;
+    animation: workingWiggle 2s ease-in-out infinite;
+}
+
+@keyframes workingWiggle {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-8deg); }
+    75% { transform: rotate(8deg); }
+}
+
+/* Working state modifiers */
+body.working .gradient-bg {
+    display: none;
+}
+
+body.working .popup-container {
+    padding: 0;
+    gap: 0;
+    background: transparent !important;
+}
+
+body.working {
+    min-height: 0;
+    width: 400px !important;
+    padding: 0;
+    background: transparent !important;
+    border-radius: 0;
+    overflow: visible;
+}
+
+body.working .working-state {
+    padding: 0;
+    min-height: 0;
+}
+
+/* Update this specific block in your CSS */
+body.working .working-state-inner {
+    box-shadow: var(--shadow-lg), 0 0 24px rgba(0, 0, 0, 0.15);
+    /* Change this line: */
+    background: rgba(10, 25, 45, 0.6); /* 60% transparent dark blue */
+    
+    /* Add this for the glass effect: */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.toast-popup {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ef4444; /* Error red */
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    z-index: 10000;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translate(-50%, 20px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}

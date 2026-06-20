@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UBC Scheduler</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+    <div class="gradient-bg"></div>
+
+    <div class="popup-container">
+        <div id="working-state" class="working-state" aria-live="polite" hidden>
+            <div class="working-state-inner">
+                <div class="working-dots">
+                    <span></span><span></span><span></span>
+                </div>
+                <p class="working-text">Working for u <span class="working-emoji">😁😄</span></p>
+            </div>
+        </div>
+        <div id="main-content">
+            <div id="error-message" class="error-message" hidden></div>
+            <header class="header">
+                <h1 class="title">
+                    <span class="title-icon">📅</span>
+                    UBC Scheduler
+                </h1>
+                <p class="subtitle">Plan your course schedule</p>
+            </header>
+
+            <form id="schedulerForm" class="form" novalidate>
+                <section class="section animate-in" style="--delay: 0.1s">
+                    <label class="section-label">Campus</label>
+                    <div class="campus-options">
+                        <label class="bubble-option">
+                            <input type="radio" name="campus" value="vancouver" required>
+                            <span class="bubble-btn">UBC Vancouver</span>
+                        </label>
+                        <label class="bubble-option">
+                            <input type="radio" name="campus" value="okanagan">
+                            <span class="bubble-btn">UBC Okanagan</span>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="section animate-in" style="--delay: 0.15s">
+                    <label class="section-label">Level</label>
+                    <div class="campus-options">
+                        <label class="bubble-option">
+                            <input type="radio" name="level" value="undergraduate" required>
+                            <span class="bubble-btn">Undergraduate</span>
+                        </label>
+                        <label class="bubble-option">
+                            <input type="radio" name="level" value="graduate">
+                            <span class="bubble-btn">Graduate</span>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="section animate-in" style="--delay: 0.18s">
+                    <label class="section-label">Time Period</label>
+                    <div class="campus-options">
+                        <label class="bubble-option">
+                            <input type="radio" name="timePeriod" value="future" required checked>
+                            <span class="bubble-btn">Future Periods</span>
+                        </label>
+                        <label class="bubble-option">
+                            <input type="radio" name="timePeriod" value="current">
+                            <span class="bubble-btn">Current Periods</span>
+                        </label>
+                        <label class="bubble-option">
+                            <input type="radio" name="timePeriod" value="past">
+                            <span class="bubble-btn">Past Periods</span>
+                        </label>
+                        <label class="bubble-option">
+                            <input type="radio" name="timePeriod" value="non-year">
+                            <span class="bubble-btn">Non-Year</span>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="section animate-in" style="--delay: 0.2s">
+                    <label class="section-label">Courses</label>
+                    <div id="courseInputsContainer" class="course-inputs">
+                        <div class="course-row" data-index="0">
+                            <input type="text" class="course-input" placeholder="e.g. CPSC 121 or PHY 131"
+                                autocomplete="off" data-course-input>
+                            <span class="course-preview" data-course-preview></span>
+                            <button type="button" class="remove-course-btn" title="Remove course" data-remove-course>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="button" class="addCourseBtn" id="addCourseBtn">
+                        <span class="plus-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                        </span>
+                        Add course
+                    </button>
+                </section>
+
+                <section class="section animate-in" style="--delay: 0.3s">
+                    <label class="section-label">Academic Year</label>
+                    <div class="year-options" id="year-options">
+                    </div>
+                </section>
+
+                <section class="section animate-in" style="--delay: 0.4s">
+                    <label class="section-label">Term</label>
+                    <div class="term-options">
+                        <label class="bubble-option">
+                            <input type="radio" name="term" value="winter1" required>
+                            <span class="bubble-btn">Winter Term 1</span>
+                        </label>
+                        <label class="bubble-option">
+                            <input type="radio" name="term" value="winter2">
+                            <span class="bubble-btn">Winter Term 2</span>
+                        </label>
+                        <label class="bubble-option">
+                            <input type="radio" name="term" value="summer">
+                            <span class="bubble-btn">Summer Session</span>
+                        </label>
+                    </div>
+                </section>
+
+                <div id="validation-error" class="validation-error" hidden></div>
+                <div class="form-actions-row">
+                    <button type="submit" class="submit-btn" id="submit-btn">
+                        <span class="submit-text">Generate Schedules</span>
+                        <span class="submit-shine"></span>
+                    </button>
+                    <button type="button" class="submit-btn save-schedule-btn" id="saveSchedulePopupBtn"
+                        title="View saved schedules">
+                        <span class="submit-text">Saved Schedules</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div id="saved-schedules-screen" class="screen saved-screen" hidden>
+            <div class="saved-header">
+                <button type="button" class="back-btn-popup" id="backToMainBtn" title="Back to main">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <path d="M19 12H5M12 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <h2 class="saved-title">Saved Schedules</h2>
+            </div>
+            <div class="saved-schedules-list-popup" id="savedSchedulesListPopup"></div>
+            <div class="no-saved-popup" id="noSavedPopup" hidden>No saved schedules yet</div>
+            <div class="saved-preview-popup" id="savedPreviewPopup" hidden>
+                <div class="saved-preview-title">Preview</div>
+                <div class="saved-preview-name" id="savedPreviewName"></div>
+                <div class="saved-preview-courses" id="savedPreviewCourses"></div>
+            </div>
+            <div class="saved-actions-popup">
+                <button type="button" class="add-to-workday-btn-popup" id="addToWorkdayBtnPopup" disabled>Add to
+                    Workday</button>
+            </div>
+        </div>
+    </div>
+    <script src="js/storage.js"></script>
+    <script src="popup.js"></script>
+</body>
+
+</html>

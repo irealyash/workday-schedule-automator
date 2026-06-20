@@ -75,11 +75,11 @@ const autoScrollToLoadAll = async (itemSelector) => {
 
     // 5. Zero-delay instant jump up (bypasses smooth scroll lag)
     if (scrollContainer.scrollTo) {
-        scrollContainer.scrollTo({ top: 0, behavior: 'ausmoothto' });
+        scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
     } else {
         scrollContainer.scrollTop = 0;
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'auto' });
 
     // Minimal stabilization pause so Workday frame updates before next keystroke
     await delay(150);
@@ -180,16 +180,14 @@ async function openCalendarTab() {
 
 async function storeOriginTabId() {
     return new Promise((resolve) => {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            const originTabId = tabs?.[0]?.id || null;
-            if (!originTabId) {
+        // Content scripts cannot use chrome.tabs; background stores sender.tab.id
+        chrome.runtime.sendMessage({ action: 'STORE_ORIGIN_TAB' }, (response) => {
+            if (chrome.runtime.lastError) {
+                console.warn('Failed to store origin tab:', chrome.runtime.lastError.message);
                 resolve(null);
                 return;
             }
-
-            chrome.storage.session?.set
-                ? chrome.storage.session.set({ [REGISTRY_KEYS2.ORIGIN_TAB_ID2]: originTabId }, () => resolve(originTabId))
-                : chrome.storage.local.set({ [REGISTRY_KEYS2.ORIGIN_TAB_ID2]: originTabId }, () => resolve(originTabId));
+            resolve(response?.tabId ?? null);
         });
     });
 }

@@ -101,12 +101,21 @@ const Storage = {
 
     /** Get extracted course data (courseCode → { Lecture, Discussion, Laboratory }). */
     async getCourseData() {
-        const result = await this._getStorage(STORAGE_KEYS.COURSE_DATA);
-        return result || {};
+        const primary = await this._getStorage(STORAGE_KEYS.COURSE_DATA);
+        if (primary && Object.keys(primary).length > 0) return primary;
+
+        const fallbackA = await this._getStorage('ubcCourseData');
+        if (fallbackA && Object.keys(fallbackA).length > 0) return fallbackA;
+
+        const fallbackB = await this._getStorage('scrapedCourseData');
+        return fallbackB || {};
     },
 
-    /** Get saved form/preferences payload. */
+    /** Get saved form/preferences payload (popup writes ubc_ui_workspace_draft). */
     async getFormData() {
+        const workspace = await this._getStorage('ubc_ui_workspace_draft');
+        if (workspace) return workspace;
+
         const result = await this._getStorage(STORAGE_KEYS.FORM_DATA);
         return result || {};
     },

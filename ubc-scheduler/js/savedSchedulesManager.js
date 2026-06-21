@@ -197,6 +197,19 @@ const SavedSchedulesManager = {
         console.log('[Add to Workday] Selected schedule IDs:', [...this.selectedIds]);
         console.log('[Add to Workday] Selected saved schedules array:', selected);
 
+        async function saveFinalData(dataToSave) {
+            try {
+                console.log("storing");
+                await chrome.storage.local.set({ finaldata: dataToSave });
+                console.log('✅ successfully saved to "finaldata":', dataToSave);
+                return true;
+            } catch (error) {
+                console.error('❌ Error saving to chrome.storage.local:', error);
+                return false;
+            }
+        }
+        saveFinalData(selected);
+
         return new Promise((resolve) => {
             // Tab switch only — navigation.js reads "ubcPendingWorkdaySchedules" on the Workday content script
             chrome.runtime.sendMessage({ action: 'FOCUS_WORKDAY_TAB' }, (response) => {

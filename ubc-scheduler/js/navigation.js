@@ -197,8 +197,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "START_AUTOMATION") {
         console.log("Message received, starting automation...");
 
-        // NOW this will work because 'document' is the Workday page!
-        navigateTillCourseSearch();
+        // 1. CRITICAL: Instantly tell the popup we got the message 
+        // This stops the "message port closed" error in finale.js
+        sendResponse({ status: "success", message: "Automation kicked off!" });
+
+        // 2. Now run your long-running async function safely
+        navigateTillCourseSearch(request.payload).catch((error) => {
+            console.error("❌ CRITICAL CRASH inside navigateTillCourseSearch:", error);
+        });
+
         return;
     }
 
@@ -228,9 +235,21 @@ async function handlePendingWorkdaySchedules() {
 }
 
 
-
-async function navigateTillCourseSearch() {
+async function navigateTillCourseSearch(shouldAutoAdd = true) {
+    console.log("Executing chunky navigation...");
     const rawUiData = await getUiWorkspace2();
+
+    async function saveRawData(dataToSave) {
+        try {
+            await chrome.storage.local.set({ rawdata: dataToSave });
+            console.log('✅ Data saved to "rawdata"');
+        } catch (error) {
+            console.error('❌ Error saving data:', error);
+        }
+    }
+
+    saveRawData(rawUiData); // Save raw UI data for debugging purposes
+
     console.log("Starting navigation process...");
     console.log("Raw UI data retrieved for navigation:", rawUiData);
     const cleanConfig = normalizeOptions(rawUiData);
@@ -519,8 +538,10 @@ async function navigateTillCourseSearch() {
     }
 
     console.log("Reached course search page.")
+    if (!shouldAutoAdd) { return; }
 
-    cousreDataExtraction(); // Start the next phase of the automation (data extraction) immediately after reaching the course search page   
+    cousreDataExtraction();
+
 }
 
 
@@ -732,25 +753,25 @@ async function cousreDataExtraction() {
     console.log(allCourseData)
 
     const finishNavigationAndOpenCalendar = async (allCourseData) => {
-    console.log("Scraping complete! Routing to background handler...");
+        console.log("Scraping complete! Routing to background handler...");
 
-    // 1. Use chrome.storage.local so both scripts can safely access it
-    chrome.storage.local.set(
-        {
-            [REGISTRY_KEYS2.COURSE_DATA2]: allCourseData,
-            [REGISTRY_KEYS2.EXTRACTED_COURSES2]: allCourseData,
-            [REGISTRY_KEYS2.SCRAPED_COURSE_DATA2]: allCourseData
-        },
-        async () => {
-            await storeOriginTabId();
-            await openCalendarTab();
-        }
-    );
-};
+        // 1. Use chrome.storage.local so both scripts can safely access it
+        chrome.storage.local.set(
+            {
+                [REGISTRY_KEYS2.COURSE_DATA2]: allCourseData,
+                [REGISTRY_KEYS2.EXTRACTED_COURSES2]: allCourseData,
+                [REGISTRY_KEYS2.SCRAPED_COURSE_DATA2]: allCourseData
+            },
+            async () => {
+                await storeOriginTabId();
+                await openCalendarTab();
+            }
+        );
+    };
 
 
 
-finishNavigationAndOpenCalendar(allCourseData); // Pass the extracted course data to the next phase (calendar rendering)
+    finishNavigationAndOpenCalendar(allCourseData); // Pass the extracted course data to the next phase (calendar rendering)
 
 
 }

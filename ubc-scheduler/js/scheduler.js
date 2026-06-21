@@ -101,11 +101,21 @@ const ScheduleEngine = {
      * Skips section types with no valid timing; supports Seminar and all other types.
      */
     buildRequirements(courseData) {
+        console.log("data")
+        console.log(courseData)
         const skippedSections = [];
         const requirements = [];
 
         for (const [courseName, sections] of Object.entries(courseData || {})) {
+            if (!sections || Object.keys(sections).length === 0) {
+                skippedSections.push({
+                    courseCode: courseName,
+                    reason: 'No sections found for this course'
+                });
+            }
+
             const req = { courseName, needed: [] };
+
 
             for (const [sectionType, typeSections] of Object.entries(sections || {})) {
                 if (!Array.isArray(typeSections) || typeSections.length === 0) continue;

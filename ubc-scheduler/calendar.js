@@ -422,10 +422,43 @@ const CalendarApp = {
         this.dom.statCredits.textContent = schedule.totalCredits || 0;
         this.dom.statDays.textContent = uniqueDays.size;
     },
+    /**
+ * Checks for time collisions in a list of classes
+ * @param {Array} classes - List of class objects
+ * @returns {string|null} - Error message if collision found, otherwise null
+ */
+    checkForCollisions(classes) {
+        for (let i = 0; i < classes.length; i++) {
+            for (let j = i + 1; j < classes.length; j++) {
+                const a = classes[i];
+                const b = classes[j];
+
+                // 1. Check if they share any days
+                const dayOverlap = a.days.some(day => b.days.includes(day));
+
+                if (dayOverlap) {
+                    // 2. Check if time ranges overlap
+                    // Logic: (StartA < EndB) AND (EndA > StartB)
+                    if (a.startTime < b.endTime && a.endTime > b.startTime) {
+                        return `Collision detected: ${a.code} and ${b.code} overlap.`;
+                    }
+                }
+            }
+        }
+        return null;
+    },
 
     async handleSave() {
         const schedule = AppState.get('activeSchedule');
         if (!schedule) return;
+
+        if (schedule.classes && schedule.classes.length > 0) {
+            const collisionError = checkForCollisions(schedule.classes);
+            if (collisionError) {
+                this.showToast(collisionError);
+                return; // Stop the save process
+            }
+        }
 
         const name = this.dom.scheduleNameInput.value.trim() || 'Untitled Schedule';
 

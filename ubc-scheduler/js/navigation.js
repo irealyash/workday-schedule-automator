@@ -243,6 +243,236 @@ async function handlePendingWorkdaySchedules() {
     });
 }
 
+async function cousreDataExtraction() {
+    const rawUiData = await getUiWorkspace2();
+    updatePopupStatus("Extracting Course Data...");
+    // Placeholder for the next phase of the automation, which would extract course data from the search results page and save it to storage.
+    console.log("Course data extraction phase would start now...");
+
+    const campusSuffix = rawUiData.campus === 'vancouver' ? '_V' : '_O';
+
+    const newCourseList = await formatCourseList(rawUiData.courseList, campusSuffix);
+    console.log("Formatted course list for search:", newCourseList);
+
+    const allCourseData = {};
+
+    // === HELPER: Parse subheader text to extract section type and status ===
+    // e.g. "Lecture   |   Open   |   In Person Learning   |   4 Credits   |   Enrolled/Capacity: 204/216"
+    const parseSubHeader = (text) => {
+        const parts = text.split('|').map(p => p.trim());
+        return {
+            sectionType: parts[0] || '',                    // "Lecture", "Laboratory", "Discussion", etc.
+            status: parts[1] || '',                         // "Open", "Closed", "Waitlisted"
+            learningType: parts[2] || '',                   // "In Person Learning", "Remote", etc.
+            credits: parseInt((parts[3] || '').match(/\d+/)?.[0]) || 0,
+            enrolledCapacity: parts[4] || '',               // "Enrolled/Capacity: 204/216"
+            extras: parts.slice(5)                          // Any remaining info
+        };
+    };
+
+    // === HELPER: Parse section detail text to extract timing info ===
+    // e.g. "UBCV | Gordon B. Shrum Building (SHRM) | Floor: -1 | Room: B1001 | Tue Thu | 9:30 a.m. - 11:00 a.m. | 2026-01-06 - 2026-02-12"
+    const parseSectionDetail = (text) => {
+        const parts = text.split('|').map(p => p.trim());
+        // Format: campus | building | floor | room | days | time | dates
+        return {
+            campus: parts[0] || '',
+            building: parts[1] || '',
+            floor: parts[2] || '',
+            room: parts[3] || '',
+            days: (parts[4] || '').split(/\s+/).map(d => d.toUpperCase()),
+            timing: parts[5] || '',
+            dateRange: parts[6] || ''
+        };
+    };
+
+    // === HELPER: Extract section code from course title ===
+    // "CPSC_V 121-201 - Models of Computation" -> "201"
+    // "CPSC_V 121-L22 - Models of Computation" -> "L22"
+    const extractSectionCode = (title) => {
+        const match = title.match(/\d+-([A-Z0-9]+)\s*-/i);
+        return match ? match[1] : '';
+    };
+
+
+    // === MAIN EXTRACTION LOOP: Process each course ===
+    for (let courseIdx = 0; courseIdx < newCourseList.length; courseIdx++) {
+        const searchTerm = newCourseList[courseIdx];
+
+        // --- STEP 1: Focus on search input box ---
+        try {
+
+            let searchInput = null;
+            let retries = 0;
+
+            // Try to find the input up to 20 times (giving the page 4 seconds to load)
+            while (!searchInput && retries < 20) {
+                searchInput = document.querySelector('[data-automation-id="textInputBox"]');
+                if (!searchInput) {
+                    await delay(200); // Wait 200ms before retrying
+                    retries++;
+                }
+            }
+
+            if (!searchInput) {
+                sendError(`Search input not found for ${searchTerm}`);
+                continue; // Skip this course and try the next one
+            }
+
+
+            searchInput.focus();
+            searchInput.value = '';
+            console.log(searchTerm);
+            await delay(200);
+
+            // --- STEP 2: Type the course code ---
+            searchInput.value = searchTerm;
+            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            searchInput.dispatchEvent(new Event('change', { bubbles: true }));
+            await delay(300);
+        } catch (e) {
+            sendError(`Search input not found for ${searchTerm}`);
+        }
+
+
+        // --- STEP 3: Click the Search button ---
+        try {
+            const searchButton = document.querySelector('[data-automation-id="advancedSearchButton"]');
+            searchButton.click();
+        } catch (e) {
+            sendError(`Search button not found for ${searchTerm}`);
+
+        }
+
+        await delay(1100); // Wait for search results to load
+
+        // --- STEP 4: Click the first expand chevron to see full details ---
+        // This is needed to get complete date info for all sections
+        const firstChevron = document.querySelector('[data-automation-id="compositeToggleIcon"]');
+        if (firstChevron && firstChevron.getAttribute('aria-expanded') !== 'true') {
+            firstChevron.click();
+            await delay(800); // Wait for details to expand
+        }
+
+        // --- STEP 4.5: FORCE LOAD ALL ITEMS (The Scroll Fix) ---
+        await autoScrollToLoadAll('[data-automation-id="compositeContainer"]');
+
+        // --- STEP 5: Get all section containers for this course ---
+
+        const sectionContainers = document.querySelectorAll('[data-automation-id="compositeContainer"]');
+
+        if (sectionContainers.length === 0) {
+            sendError('No course section found');
+            return; // Stop all clicks, show error on popup
+        }
+
+        // Initialize CourseStruc for this course
+        const courseStruc = {};
+
+        // Get expanded section details from first item for date reference
+        let referenceDetails = [];
+        const expandedDetailSection = document.querySelector('[data-automation-id="compositeDetail"]');
+        if (expandedDetailSection) {
+            // Get all detail items from expanded section
+            const detailItems = expandedDetailSection.querySelectorAll('[data-automation-id="promptOption"]');
+            detailItems.forEach(item => {
+                const label = item.getAttribute('data-automation-label') || item.textContent || '';
+                if (label.includes('|')) {
+                    referenceDetails.push(parseSectionDetail(label));
+                }
+            });
+        }
+
+        // --- STEP 6: Iterate over all section <li> tags and extract data ---
+        sectionContainers.forEach((container, idx) => {
+            // Get section title/name element
+            const titleEl = container.querySelector('[data-automation-id="promptOption"]');
+            const title = titleEl?.getAttribute('data-automation-label') || titleEl?.textContent || '';
+
+            // Get subheader with section type, status, credits, etc.
+            const subHeaderEl = container.querySelector('[data-automation-id="compositeSubHeaderOne"]');
+            const subHeaderText = subHeaderEl?.getAttribute('title') || subHeaderEl?.textContent || '';
+
+            const parsed = parseSubHeader(subHeaderText);
+
+            // Skip closed sections - only process "Open" ones
+            if (parsed.status.toLowerCase() !== 'open') {
+                return; // Continue to next section
+            }
+
+            const sectionType = parsed.sectionType; // "Lecture", "Laboratory", "Discussion", etc.
+            const sectionCode = extractSectionCode(title);
+
+            // Get preview detail (visible without expanding)
+            const previewDetail = container.querySelector('[data-automation-id="compositeDetailPreview"] [data-automation-id="promptOption"]');
+            const previewText = previewDetail?.getAttribute('data-automation-label') || previewDetail?.textContent || '';
+            const previewParsed = parseSectionDetail(previewText);
+
+            // Build section object
+            const sectionData = {
+                code: sectionCode,
+                credits: parsed.credits,
+                dates: [],              // Will hold multiple date ranges if applicable
+                timing: previewParsed.timing,
+                days: previewParsed.days,
+                location: `${previewParsed.campus} | ${previewParsed.building} | ${previewParsed.floor} | ${previewParsed.room}`,
+                enrolledCapacity: parsed.enrolledCapacity,
+                learningType: parsed.learningType
+            };
+
+            // For dates: use reference details from expanded first section
+            // This captures multiple date ranges (e.g., before and after break)
+            if (idx === 0 && referenceDetails.length > 0) {
+                // First section - use expanded details
+                sectionData.dates = referenceDetails.map(d => d.dateRange);
+            } else if (previewParsed.dateRange) {
+                // Other sections - use preview date
+                sectionData.dates = [previewParsed.dateRange];
+            }
+
+            // Initialize section type array if needed
+            if (!courseStruc[sectionType]) {
+                courseStruc[sectionType] = [];
+            }
+
+            // Add this section to appropriate type
+            courseStruc[sectionType].push(sectionData);
+        });
+
+        // Store course data
+        allCourseData[searchTerm] = courseStruc;
+
+        // Small delay before next course search
+        await delay(500);
+    }
+
+
+    console.log(allCourseData)
+
+    const finishNavigationAndOpenCalendar = async (allCourseData) => {
+        console.log("Scraping complete! Routing to background handler...");
+
+        // 1. Use chrome.storage.local so both scripts can safely access it
+        chrome.storage.local.set(
+            {
+                [REGISTRY_KEYS2.COURSE_DATA2]: allCourseData,
+                [REGISTRY_KEYS2.EXTRACTED_COURSES2]: allCourseData,
+                [REGISTRY_KEYS2.SCRAPED_COURSE_DATA2]: allCourseData
+            },
+            async () => {
+                await storeOriginTabId();
+                await openCalendarTab();
+            }
+        );
+    };
+
+
+
+    finishNavigationAndOpenCalendar(allCourseData); // Pass the extracted course data to the next phase (calendar rendering)
+
+
+}
+
 
 async function navigateTillCourseSearch(shouldAutoAdd = true) {
     console.log("Executing chunky navigation...");
@@ -558,6 +788,9 @@ async function navigateTillCourseSearch(shouldAutoAdd = true) {
 
 }
 
+
+
+
 async function theend() {
     let data = null;
     try {
@@ -589,75 +822,41 @@ async function theend() {
     }
     if (data) { console.log(data) } else { console.log("No data found in storage after retries."); }
 
-    for (i=0; i<data.length; i++) {
-        
+    function groupSectionsByCourse(schedule) {
+        // Verify we have a valid schedule object with a sections array
+        if (!schedule || !Array.isArray(schedule.sections)) {
+            console.error("Invalid schedule object provided:", schedule);
+            return [];
+        }
+
+        const grouped = schedule.sections.reduce((acc, section) => {
+            const { courseCode, sectionType, sectionCode } = section;
+
+            if (!acc[courseCode]) {
+                acc[courseCode] = {
+                    courseName: courseCode,
+                    sections: {}
+                };
+            }
+            acc[courseCode].sections[sectionType] = sectionCode;
+            return acc;
+        }, {});
+
+        return Object.values(grouped);
     }
 
-}
+
+
+    for (i = 0; i < data.length; i++) {
+        let result = groupSectionsByCourse(data[i]);
+        console.log(result);
 
 
 
-
-async function cousreDataExtraction() {
-    const rawUiData = await getUiWorkspace2();
-    updatePopupStatus("Extracting Course Data...");
-    // Placeholder for the next phase of the automation, which would extract course data from the search results page and save it to storage.
-    console.log("Course data extraction phase would start now...");
-
-    const campusSuffix = rawUiData.campus === 'vancouver' ? '_V' : '_O';
-
-    const newCourseList = await formatCourseList(rawUiData.courseList, campusSuffix);
-    console.log("Formatted course list for search:", newCourseList);
-
-    const allCourseData = {};
-
-    // === HELPER: Parse subheader text to extract section type and status ===
-    // e.g. "Lecture   |   Open   |   In Person Learning   |   4 Credits   |   Enrolled/Capacity: 204/216"
-    const parseSubHeader = (text) => {
-        const parts = text.split('|').map(p => p.trim());
-        return {
-            sectionType: parts[0] || '',                    // "Lecture", "Laboratory", "Discussion", etc.
-            status: parts[1] || '',                         // "Open", "Closed", "Waitlisted"
-            learningType: parts[2] || '',                   // "In Person Learning", "Remote", etc.
-            credits: parseInt((parts[3] || '').match(/\d+/)?.[0]) || 0,
-            enrolledCapacity: parts[4] || '',               // "Enrolled/Capacity: 204/216"
-            extras: parts.slice(5)                          // Any remaining info
-        };
-    };
-
-    // === HELPER: Parse section detail text to extract timing info ===
-    // e.g. "UBCV | Gordon B. Shrum Building (SHRM) | Floor: -1 | Room: B1001 | Tue Thu | 9:30 a.m. - 11:00 a.m. | 2026-01-06 - 2026-02-12"
-    const parseSectionDetail = (text) => {
-        const parts = text.split('|').map(p => p.trim());
-        // Format: campus | building | floor | room | days | time | dates
-        return {
-            campus: parts[0] || '',
-            building: parts[1] || '',
-            floor: parts[2] || '',
-            room: parts[3] || '',
-            days: (parts[4] || '').split(/\s+/).map(d => d.toUpperCase()),
-            timing: parts[5] || '',
-            dateRange: parts[6] || ''
-        };
-    };
-
-    // === HELPER: Extract section code from course title ===
-    // "CPSC_V 121-201 - Models of Computation" -> "201"
-    // "CPSC_V 121-L22 - Models of Computation" -> "L22"
-    const extractSectionCode = (title) => {
-        const match = title.match(/\d+-([A-Z0-9]+)\s*-/i);
-        return match ? match[1] : '';
-    };
-
-
-    // === MAIN EXTRACTION LOOP: Process each course ===
-    for (let courseIdx = 0; courseIdx < newCourseList.length; courseIdx++) {
-        const searchTerm = newCourseList[courseIdx];
-
-        // --- STEP 1: Focus on search input box ---
         try {
-
+            const firstValue = Object.values(result[0].sections)[0];
             let searchInput = null;
+            let searchTerm = result[0].courseName + "-" + firstValue;
             let retries = 0;
 
             // Try to find the input up to 20 times (giving the page 4 seconds to load)
@@ -670,7 +869,7 @@ async function cousreDataExtraction() {
             }
 
             if (!searchInput) {
-                sendError(`Search input not found for ${searchTerm}`);
+                sendError(`Search input not found 1`);
                 continue; // Skip this course and try the next one
             }
 
@@ -686,9 +885,8 @@ async function cousreDataExtraction() {
             searchInput.dispatchEvent(new Event('change', { bubbles: true }));
             await delay(300);
         } catch (e) {
-            sendError(`Search input not found for ${searchTerm}`);
+            sendError(`Search input not found2`);
         }
-
 
         // --- STEP 3: Click the Search button ---
         try {
@@ -699,133 +897,317 @@ async function cousreDataExtraction() {
 
         }
 
-        await delay(1100); // Wait for search results to load
-
-        // --- STEP 4: Click the first expand chevron to see full details ---
-        // This is needed to get complete date info for all sections
-        const firstChevron = document.querySelector('[data-automation-id="compositeToggleIcon"]');
-        if (firstChevron && firstChevron.getAttribute('aria-expanded') !== 'true') {
-            firstChevron.click();
-            await delay(800); // Wait for details to expand
+        async function waitForElement(selector, timeout = 5000) {
+            const start = Date.now();
+            while (Date.now() - start < timeout) {
+                const el = document.querySelector(selector);
+                if (el) return el;
+                await new Promise(resolve => setTimeout(resolve, 200)); // Check every 200ms
+            }
+            return null;
         }
 
-        // --- STEP 4.5: FORCE LOAD ALL ITEMS (The Scroll Fix) ---
-        await autoScrollToLoadAll('[data-automation-id="compositeContainer"]');
+        // This targets the first element with the 'promptOption' ID, 
+        // which corresponds to the course title in your HTML structure.
+        const selector = '[data-automation-label*="' + result[0].courseName + '"]';
+        const courseTitle = await waitForElement(selector);
 
-        // --- STEP 5: Get all section containers for this course ---
-
-        const sectionContainers = document.querySelectorAll('[data-automation-id="compositeContainer"]');
-
-        if (sectionContainers.length === 0) {
-            sendError('No course section found');
-            return; // Stop all clicks, show error on popup
+        if (courseTitle) {
+            // 1. Force focus
+            courseTitle.click();
         }
 
-        // Initialize CourseStruc for this course
-        const courseStruc = {};
 
-        // Get expanded section details from first item for date reference
-        let referenceDetails = [];
-        const expandedDetailSection = document.querySelector('[data-automation-id="compositeDetail"]');
-        if (expandedDetailSection) {
-            // Get all detail items from expanded section
-            const detailItems = expandedDetailSection.querySelectorAll('[data-automation-id="promptOption"]');
-            detailItems.forEach(item => {
-                const label = item.getAttribute('data-automation-label') || item.textContent || '';
-                if (label.includes('|')) {
-                    referenceDetails.push(parseSectionDetail(label));
+        // Target the button by its specific automation-id AND ensure it belongs to the correct course
+        // We use 'aria-label*=' to match the course name inside the button label
+        const selector2 = `button[data-automation-id="label"][aria-label*="${result[0].courseName}"]`;
+        const addButton = await waitForElement(selector2);
+
+        if (addButton) {
+            console.log("Found 'Add to Saved Schedule' button for:", result[0].courseName);
+
+            // Workday buttons often need to be "interactable". 
+            // Ensuring it's in view is often the key to triggering the event listener.
+            addButton.scrollIntoView({ behavior: 'instant', block: 'center' });
+
+            // Add a tiny delay to ensure the scroll finished
+            setTimeout(() => {
+                addButton.click();
+                console.log("Clicked the Add button.");
+            }, 100);
+        } else {
+            console.error("Could not find the 'Add to Saved Schedule' button for:", result[0].courseName);
+        }
+
+
+        const selector8 = '[data-automation-label="New Saved Schedule"]';
+        const radioLabel = await waitForElement(selector8);
+
+        if (radioLabel) {
+            // 1. Scroll into view to ensure it is rendered/active
+            radioLabel.scrollIntoView({ behavior: 'instant', block: 'center' });
+
+            // 2. Focus and Interact
+            radioLabel.focus();
+            radioLabel.click();
+
+            // 3. Dispatch events to trigger Workday's framework listeners
+            radioLabel.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+            radioLabel.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+
+            console.log("Selected radio button: New Saved Schedule");
+        } else {
+            console.error("Timeout: Could not find 'New Saved Schedule' within 5 seconds.");
+        }
+
+        async function setWorkdayInputByIndex(searchTerm, index = 0, targetCount = 2) {
+            let allContainers = [];
+            let retries = 0;
+            const maxRetries = 25; // 25 * 200ms = 5 seconds total
+
+            // 1. Wait until the number of containers is at least the targetCount
+            while (true) {
+                allContainers = document.querySelectorAll('[data-automation-id="textInput"]');
+
+                if (allContainers.length >= targetCount) {
+                    console.log(`Found ${allContainers.length} containers, proceeding...`);
+                    break;
                 }
-            });
+
+                if (retries >= maxRetries) {
+                    throw new Error(`Timed out: Expected at least ${targetCount} containers, but found ${allContainers.length}.`);
+                }
+
+                await new Promise(resolve => setTimeout(resolve, 200));
+                retries++;
+            }
+
+            // 2. Validate that the requested index exists
+            if (!allContainers[index]) {
+                throw new Error(`Container at index ${index} not found. Found ${allContainers.length} total.`);
+            }
+
+            // 3. Drill down to the specific input
+            const container = allContainers[index];
+            const searchInput = container.querySelector('[data-automation-id="textInputBox"]');
+
+            if (!searchInput) {
+                throw new Error("Input box not found inside the selected container.");
+            }
+
+            // 4. Focus and Clear
+            searchInput.scrollIntoView({ behavior: 'instant', block: 'center' });
+            searchInput.focus();
+
+            // 5. Use Native Value Setter
+            const nativeValueSetter = Object.getOwnPropertyDescriptor(
+                window.HTMLInputElement.prototype, 'value'
+            ).set;
+            nativeValueSetter.call(searchInput, searchTerm);
+
+            // 6. Trigger Workday's required event sequence
+            searchInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+            searchInput.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+
+            console.log(`Successfully set input #${index} to: ${searchTerm}`);
         }
 
-        // --- STEP 6: Iterate over all section <li> tags and extract data ---
-        sectionContainers.forEach((container, idx) => {
-            // Get section title/name element
-            const titleEl = container.querySelector('[data-automation-id="promptOption"]');
-            const title = titleEl?.getAttribute('data-automation-label') || titleEl?.textContent || '';
+        // --- Example Usage in your Loop ---
+        // Assuming 'data' is your array and 'i' is the loop counter
+        try {
+            // Example: Select the second input box (index 1)
+            await setWorkdayInputByIndex(data[i].name, 1);
+        } catch (err) {
+            console.error("Interaction failed:", err.message);
+            sendError(err.message);
+        }
 
-            // Get subheader with section type, status, credits, etc.
-            const subHeaderEl = container.querySelector('[data-automation-id="compositeSubHeaderOne"]');
-            const subHeaderText = subHeaderEl?.getAttribute('title') || subHeaderEl?.textContent || '';
+        document.querySelector('[data-automation-id="wd-CommandButton_uic_okButton"]').click();
 
-            const parsed = parseSubHeader(subHeaderText);
+        /**
+ * Finds and clicks the "Clear All" button based on its label.
+ */
+        /**
+ * Targets and clicks the specific 'Clear All' button.
+ */
+        async function clickClearAll() {
+            // 1. Target the button with the specific component type
+            // 2. Filter for the one that contains the text 'Clear All' in its span
+            const buttons = document.querySelectorAll('[data-uxi-canvas-kit-component-type="tertiary-button"]');
 
-            // Skip closed sections - only process "Open" ones
-            if (parsed.status.toLowerCase() !== 'open') {
-                return; // Continue to next section
+            for (const btn of buttons) {
+                const span = btn.querySelector('span');
+                if (span && span.textContent.trim() === 'Clear All') {
+                    btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+                    btn.click();
+                    console.log("Clicked 'Clear All' button.");
+                    return true;
+                }
             }
 
-            const sectionType = parsed.sectionType; // "Lecture", "Laboratory", "Discussion", etc.
-            const sectionCode = extractSectionCode(title);
+            console.warn("Could not find the 'Clear All' button.");
+            return false;
+        }
 
-            // Get preview detail (visible without expanding)
-            const previewDetail = container.querySelector('[data-automation-id="compositeDetailPreview"] [data-automation-id="promptOption"]');
-            const previewText = previewDetail?.getAttribute('data-automation-label') || previewDetail?.textContent || '';
-            const previewParsed = parseSectionDetail(previewText);
+        clickClearAll();
 
-            // Build section object
-            const sectionData = {
-                code: sectionCode,
-                credits: parsed.credits,
-                dates: [],              // Will hold multiple date ranges if applicable
-                timing: previewParsed.timing,
-                days: previewParsed.days,
-                location: `${previewParsed.campus} | ${previewParsed.building} | ${previewParsed.floor} | ${previewParsed.room}`,
-                enrolledCapacity: parsed.enrolledCapacity,
-                learningType: parsed.learningType
-            };
+        // Ensure this is called inside an async function
+        async function searchByFormSubmit(name) {
+            clickClearAll();
+            const inputElement = document.querySelector('input[placeholder="Search for course"]');
 
-            // For dates: use reference details from expanded first section
-            // This captures multiple date ranges (e.g., before and after break)
-            if (idx === 0 && referenceDetails.length > 0) {
-                // First section - use expanded details
-                sectionData.dates = referenceDetails.map(d => d.dateRange);
-            } else if (previewParsed.dateRange) {
-                // Other sections - use preview date
-                sectionData.dates = [previewParsed.dateRange];
+            if (!inputElement) {
+                console.error("Input not found!");
+                return;
             }
 
-            // Initialize section type array if needed
-            if (!courseStruc[sectionType]) {
-                courseStruc[sectionType] = [];
+            // 1. Set the value using the native descriptor (to trigger React/GWT state update)
+            const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+            nativeValueSetter.call(inputElement, name);
+
+            // 2. Trigger standard events
+            inputElement.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+            inputElement.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+
+            // 3. Attempt to find the parent <form> and trigger a submit event
+            const form = inputElement.closest('form');
+            if (form) {
+                console.log("Form found, triggering submit...");
+                // This simulates pressing Enter in an input field perfectly
+                form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            } else {
+                console.warn("No <form> tag found, falling back to forceful KeyboardEvent...");
+
+                // 4. Fallback: Dispatch a "Trusted-like" KeyboardEvent
+                // We set 'composed: true' to ensure it traverses shadow DOMs
+                const enterEvent = new KeyboardEvent('keydown', {
+                    key: 'Enter',
+                    code: 'Enter',
+                    keyCode: 13,
+                    which: 13,
+                    bubbles: true,
+                    cancelable: true,
+                    composed: true
+                });
+
+                inputElement.dispatchEvent(enterEvent);
+                inputElement.blur();
+            }// Wait for search results to load
+        }
+
+
+
+
+
+
+        async function addCourseSection(courseCode) {
+            clickClearAll();
+            // 1. Find all section containers
+            const sections = document.querySelectorAll('[data-automation-id="section-container"]');
+
+            let targetButton = null;
+
+            // 2. Loop through them to find the one matching your courseCode
+            for (const section of sections) {
+                const textElement = section.querySelector('[data-automation-id="section-container-action-button"]');
+
+                // Use the aria-label to verify this is the correct course
+                if (textElement.getAttribute('aria-label').includes(courseCode)) {
+                    targetButton = textElement;
+                    break;
+                }
             }
 
-            // Add this section to appropriate type
-            courseStruc[sectionType].push(sectionData);
-        });
+            // 3. Click the button if found
+            if (targetButton) {
+                targetButton.scrollIntoView({ behavior: 'instant', block: 'center' });
+                targetButton.click();
+                console.log(`Successfully clicked 'Add' for: ${courseCode}`);
+                return true;
+            } else {
+                console.error(`Course section ${courseCode} not found on page.`);
+                return false;
+            }
+        }
 
-        // Store course data
-        allCourseData[searchTerm] = courseStruc;
+        /**
+ * Finds and clicks the expansion button for a specific course.
+ * @param {string} courseName - The course name (e.g., "CPSC_V 121")
+ */
+        async function expandCourseSection(courseName) {
+            // 1. XPath searches for a button containing the text AND is currently collapsed
+            const xpath = `//button[contains(., '${courseName}') and @aria-expanded='false']`;
+            const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+            const button = result.singleNodeValue;
 
-        // Small delay before next course search
-        await delay(500);
+            if (button) {
+                console.log(`Expanding course: ${courseName}`);
+                button.scrollIntoView({ behavior: 'instant', block: 'center' });
+                button.click();
+
+                // Wait for the expansion animation to finish (Workday is often slow here)
+                await new Promise(r => setTimeout(r, 500));
+                return true;
+            } else {
+                console.log(`Course ${courseName} is already expanded or not found.`);
+                return false;
+            }
+        }
+
+        async function processAllCourses(courseDataArray) {
+            for (let i = 0; i < courseDataArray.length; i++) {
+                clickClearAll();
+                const course = courseDataArray[i];
+
+                // 1. Search for the course
+                await searchByFormSubmit(course.courseName);
+                await new Promise(r => setTimeout(r, 3000));
+
+                await expandCourseSection(course.courseName);
+
+                const sections = Object.entries(course.sections);
+
+                for (let j = 0; j < sections.length; j++) {
+                    // Check if this is the first course (i==0) AND the first section (j==0)
+                    if (i === 0 && j === 0) {
+                        console.log(`Skipping already added section: ${course.courseName}-${sections[j][1]}`);
+                        continue; // Skips this iteration and moves to the next section
+                    }
+
+                    const [sectionType, sectionCode] = sections[j];
+                    const fullCode = `${course.courseName}-${sectionCode}`;
+
+                    console.log(`Adding section: ${fullCode}`);
+
+                    // 3. Add the section
+                    const success = await addCourseSection(fullCode);
+
+                    if (success) {
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
+                }
+            }
+            console.log("All remaining courses and sections processed successfully.");
+        }
+
+        await processAllCourses(result);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
-
-
-    console.log(allCourseData)
-
-    const finishNavigationAndOpenCalendar = async (allCourseData) => {
-        console.log("Scraping complete! Routing to background handler...");
-
-        // 1. Use chrome.storage.local so both scripts can safely access it
-        chrome.storage.local.set(
-            {
-                [REGISTRY_KEYS2.COURSE_DATA2]: allCourseData,
-                [REGISTRY_KEYS2.EXTRACTED_COURSES2]: allCourseData,
-                [REGISTRY_KEYS2.SCRAPED_COURSE_DATA2]: allCourseData
-            },
-            async () => {
-                await storeOriginTabId();
-                await openCalendarTab();
-            }
-        );
-    };
-
-
-
-    finishNavigationAndOpenCalendar(allCourseData); // Pass the extracted course data to the next phase (calendar rendering)
-
-
 }
-
-

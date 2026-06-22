@@ -1053,7 +1053,6 @@ async function theend() {
 
         // Ensure this is called inside an async function
         async function searchByFormSubmit(name) {
-            clickClearAll();
             const inputElement = document.querySelector('input[placeholder="Search for course"]');
 
             if (!inputElement) {
@@ -1101,7 +1100,6 @@ async function theend() {
 
 
         async function addCourseSection(courseCode) {
-            clickClearAll();
             // 1. Find all section containers
             const sections = document.querySelectorAll('[data-automation-id="section-container"]');
 
@@ -1161,7 +1159,9 @@ async function theend() {
 
                 // 1. Search for the course
                 await searchByFormSubmit(course.courseName);
-                await new Promise(r => setTimeout(r, 3000));
+
+                await new Promise(r => setTimeout(r, 4000));
+
 
                 await expandCourseSection(course.courseName);
 
@@ -1173,7 +1173,6 @@ async function theend() {
                         console.log(`Skipping already added section: ${course.courseName}-${sections[j][1]}`);
                         continue; // Skips this iteration and moves to the next section
                     }
-
                     const [sectionType, sectionCode] = sections[j];
                     const fullCode = `${course.courseName}-${sectionCode}`;
 
@@ -1192,22 +1191,19 @@ async function theend() {
 
         await processAllCourses(result);
 
+        const saveButton = document.querySelector('[data-uxi-element-id="save-button"]');
 
+        if (saveButton) {
+            saveButton.scrollIntoView({ behavior: 'instant', block: 'center' });
+            saveButton.click();
+            console.log("Save button clicked.");
+        } else {
+            console.error("Save button not found!");
+        }
 
+        await delay(5000);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+        navigateTillCourseSearch(false); // Call the function to start the process, but with autoAdd set to false to prevent infinite loops
 
     }
 }

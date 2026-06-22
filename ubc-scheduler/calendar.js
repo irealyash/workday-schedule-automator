@@ -19,6 +19,25 @@ const CalendarApp = {
     dom: {},
 
     async init() {
+        // calendar.js
+        window.addEventListener('load', () => {
+            const params = new URLSearchParams(window.location.search);
+
+            // If the popup told us to open the saved schedules
+            if (params.get('trigger') === 'savedSchedules') {
+                const targetBtn = document.getElementById('savedSchedulesBtn');
+
+                if (targetBtn) {
+                    // We use a small delay to ensure the UI is fully rendered 
+                    // before the "click" happens.
+                    setTimeout(() => {
+                        targetBtn.click();
+                    }, 200);
+                } else {
+                    console.error("Button #savedSchedulesBtn not found on calendar page!");
+                }
+            }
+        });
         this.cacheDom();
         await Navigation.init();
         await AppState.init();
@@ -133,6 +152,8 @@ const CalendarApp = {
             this.openScheduleAlertsModal();
         }
     },
+
+
 
     openScheduleAlertsModal() {
         const list = this.dom.scheduleAlertsList;

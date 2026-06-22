@@ -9,7 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 })
 async function finale(e) {
+
     e.preventDefault();
+    
 
     console.log("Finale function called");
 
@@ -72,5 +74,7 @@ async function finale(e) {
             }
         });
     });
+
+    
 };
 

@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const addToWorkdayBtnPopup = document.getElementById('addToWorkdayBtnPopup');
     console.log('popup.js: DOMContentLoaded');
 
-    
+
 
     // === Core Configuration Constants ===
     const MAX_COURSES = 15; // Locks layout threshold to prevent extension viewport clipping
@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * Serializes the entire popup form state and saves it to local extension storage.
      */
 
-    
+
     function saveFormState() {
         const state = {
             campus: document.querySelector('input[name="campus"]:checked')?.value || '',
@@ -465,7 +465,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (saveSchedulePopupBtn) {
         saveSchedulePopupBtn.addEventListener('click', () => {
-            openSavedSchedulesScreen();
+            // We open the tab with a specific 'trigger' parameter
+            chrome.tabs.create({ url: "calendar.html?trigger=savedSchedules" });
         });
     }
 

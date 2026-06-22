@@ -193,28 +193,37 @@ async function storeOriginTabId() {
 }
 /////Normalizing function to ensure consistent formatting of user inputs before processing. This is crucial for the automation to correctly interpret the selections and navigate Workday without errors.
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "START_AUTOMATION") {
-        console.log("Message received, starting automation...");
+if (!globalThis.__UBC_NAV_MESSAGE_LISTENER__) {
+    globalThis.__UBC_NAV_MESSAGE_LISTENER__ = true;
 
-        // 1. CRITICAL: Instantly tell the popup we got the message 
-        // This stops the "message port closed" error in finale.js
-        sendResponse({ status: "success", message: "Automation kicked off!" });
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === 'PING') {
+            sendResponse({ ok: true });
+            return true;
+        }
 
-        // 2. Now run your long-running async function safely
-        navigateTillCourseSearch(request.payload).catch((error) => {
-            console.error("❌ CRITICAL CRASH inside navigateTillCourseSearch:", error);
-        });
+        if (request.action === "START_AUTOMATION") {
+            console.log("Message received, starting automation...");
 
-        return;
-    }
+            sendResponse({ status: "success", message: "Automation kicked off!" });
 
-    if (request.action === 'PENDING_SCHEDULES_READY') {
-        handlePendingWorkdaySchedules();
-        sendResponse?.({ received: true });
-        return true;
-    }
-});
+            const shouldAutoAdd = request.payload !== false;
+            navigateTillCourseSearch(shouldAutoAdd).catch((error) => {
+                console.error("CRITICAL CRASH inside navigateTillCourseSearch:", error);
+            });
+
+            return true;
+        }
+
+        if (request.action === 'PENDING_SCHEDULES_READY') {
+            handlePendingWorkdaySchedules();
+            sendResponse?.({ received: true });
+            return true;
+        }
+
+        return false;
+    });
+}
 
 async function handlePendingWorkdaySchedules() {
     return new Promise((resolve) => {
@@ -237,7 +246,12 @@ async function handlePendingWorkdaySchedules() {
 
 async function navigateTillCourseSearch(shouldAutoAdd = true) {
     console.log("Executing chunky navigation...");
-    const rawUiData = await getUiWorkspace2();
+    let rawUiData = await getUiWorkspace2();
+
+    if (!rawUiData) {
+        await delay(400);
+        rawUiData = await getUiWorkspace2();
+    }
 
     async function saveRawData(dataToSave) {
         try {
@@ -538,11 +552,49 @@ async function navigateTillCourseSearch(shouldAutoAdd = true) {
     }
 
     console.log("Reached course search page.")
-    if (!shouldAutoAdd) { return; }
+    if (!shouldAutoAdd) { theend(); return; }
 
     cousreDataExtraction();
 
 }
+
+async function theend() {
+    let data = null;
+    try {
+        // Wait 500ms first if you need to wait for a previous save to settle
+        await delay(500);
+
+        // FIX: Clean await directly on the storage call
+        let result = await chrome.storage.local.get('finaldata');
+        data = result.finaldata;
+
+        // If data is missing, wait 1000ms more and try one retry
+        if (!data) {
+            console.log('Data not found on first try. Retrying in 1000ms...');
+            await delay(1000);
+
+            result = await chrome.storage.local.get('finaldata');
+            data = result.finaldata;
+        }
+
+        if (data) {
+            console.log('Successfully retrieved finaldata:', data);
+            // Run your Workday script logic here...
+        } else {
+            console.log('Failed to retrieve finaldata after retry.');
+        }
+
+    } catch (error) {
+        console.error('Error retrieving data from storage:', error);
+    }
+    if (data) { console.log(data) } else { console.log("No data found in storage after retries."); }
+
+    for (i=0; i<data.length; i++) {
+        
+    }
+
+}
+
 
 
 

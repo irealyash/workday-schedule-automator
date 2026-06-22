@@ -332,6 +332,86 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. FORM SUBMISSION & VALIDATION
     // ==========================================
 
+    async function findWorkdayTab() {
+        const workdayTabs = await chrome.tabs.query({ url: '*://*.myworkday.com/*' });
+        if (workdayTabs.length > 0) {
+            return workdayTabs.find(tab => tab.active) || workdayTabs[0];
+        }
+
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (activeTab?.url?.includes('myworkday.com')) {
+            return activeTab;
+        }
+
+        return null;
+    }
+
+    async function pingContentScript(tabId) {
+        return new Promise((resolve) => {
+            chrome.tabs.sendMessage(tabId, { action: 'PING' }, (response) => {
+                if (chrome.runtime.lastError || !response?.ok) {
+                    resolve(false);
+                    return;
+                }
+                resolve(true);
+            });
+        });
+    }
+
+    async function ensureNavigationScript(tabId) {
+        if (await pingContentScript(tabId)) {
+            return;
+        }
+
+        await chrome.scripting.executeScript({
+            target: { tabId },
+            files: ['js/navigation.js']
+        });
+
+        for (let attempt = 0; attempt < 10; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            if (await pingContentScript(tabId)) {
+                return;
+            }
+        }
+
+        throw new Error('Could not connect to Workday. Refresh the page and try again.');
+    }
+
+    async function sendStartAutomation(tabId) {
+        return new Promise((resolve, reject) => {
+            chrome.tabs.sendMessage(tabId, { action: 'START_AUTOMATION' }, (response) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                    return;
+                }
+                resolve(response);
+            });
+        });
+    }
+
+    async function startAutomationFromPopup(config) {
+        const saved = await saveUiWorkspace(config);
+        if (!saved) {
+            throw new Error('Failed to save your selections. Please try again.');
+        }
+
+        const mainContent = document.getElementById('main-content');
+        const workingState = document.getElementById('working-state');
+        mainContent.hidden = true;
+        workingState.hidden = false;
+
+        const tab = await findWorkdayTab();
+        if (!tab?.id) {
+            mainContent.hidden = false;
+            workingState.hidden = true;
+            throw new Error('Open your UBC Workday page first, then click Generate Schedules.');
+        }
+
+        await ensureNavigationScript(tab.id);
+        await sendStartAutomation(tab.id);
+    }
+
     if (popupForm) {
         popupForm.addEventListener("submit", async (event) => {
             console.log('popup.js: submit event fired');
@@ -378,49 +458,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
 
-            if (runtimePayload) {
-                saveUiWorkspace(runtimePayload.config).then(success => {
-                    if (success) {
-                        console.log("UI workspace saved successfully before generation.");
-                        event.preventDefault();
-
-                        // 1. Get references to your UI elements
-                        const mainContent = document.getElementById('main-content');
-                        const workingState = document.getElementById('working-state');
-
-                        mainContent.hidden = true;
-                        workingState.hidden = false;
-                    } else {
-                        console.warn("Failed to save UI workspace before generation.");
-                    }
-                });
+            try {
+                await startAutomationFromPopup(runtimePayload.config);
+                console.log('Automation started successfully.');
+            } catch (err) {
+                console.error('Automation start failed:', err);
+                setValidationError(err.message || 'Could not start automation. Refresh Workday and try again.');
             }
-
-            // --- Replace your current anonymous function block with this ---
-
-            // 1. Assign it to a variable or call it immediately
-            async function main67() {
-                console.log("Attempting to send message to content script...");
-                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-                try {
-                    await chrome.tabs.sendMessage(tab.id, { action: "PING" });
-                } catch (e) {
-                    await chrome.scripting.executeScript({
-                        target: { tabId: tab.id },
-                        files: ['js/navigation.js']
-                    });
-                    await new Promise(r => setTimeout(r, 100));
-                }
-
-                chrome.tabs.sendMessage(tab.id, { action: "START_AUTOMATION" });
-            };
-
-            main67();
-
-            console.log("Configuration Compiled successfully!");
-
-            // Note: Next step will hook up extension messaging pipeline here!
         });
     }
 

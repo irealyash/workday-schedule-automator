@@ -52,29 +52,35 @@ Data stays on your machine via `chrome.storage` — nothing is sent to a third-p
 
 ## Project structure
 
+Extension entry points stay at the repo root. UI and scripts live under `src/`.
+
 ```
 .
-├── manifest.json          # Manifest V3 extension config
+├── manifest.json              # Manifest V3 — points into src/
 ├── README.md
-├── storage.md             # Storage keys & data-flow reference
+├── .gitignore
+├── storage.md                 # Storage keys & data-flow reference
 └── src/
-    ├── popup.html / .css
-    ├── calendar.html / .css
+    ├── popup.html             # Extension popup UI
+    ├── popup.css
+    ├── calendar.html          # Full-page calendar UI
+    ├── calendar.css
     └── js/
-        ├── popup.js
-        ├── calendar.js
-        ├── finale.js          # Workday handoff from saved schedules
-        ├── background.js      # Service worker (tabs, calendar open)
+        ├── background.js      # Service worker (tabs, open calendar)
         ├── navigation.js      # Workday content script / scraping
+        ├── popup.js           # Popup form + Generate Schedules
+        ├── calendar.js        # Calendar UI, save, drag handlers
+        ├── finale.js          # Workday handoff from saved schedules
         ├── scheduler.js       # Conflict-aware schedule engine
-        ├── state.js           # Calendar app state
+        ├── state.js           # Calendar in-memory app state
         ├── storage.js         # Popup storage helpers
         ├── storage2.js        # Calendar storage helpers
         ├── layoutEngine.js    # Overlap layout for calendar blocks
         ├── dragManager.js     # Drag-and-drop section swaps
         ├── scheduleValidator.js
         ├── savedSchedulesManager.js
-        └── navigation2.js
+        ├── navigation2.js
+        └── onlyforNavigation.js
 ```
 
 ---
@@ -82,12 +88,12 @@ Data stays on your machine via `chrome.storage` — nothing is sent to a third-p
 ## Architecture (short)
 
 ```
-Popup form
+src/popup.html (popup.js)
     → chrome.storage (workspace draft)
-    → content script on Workday (navigation.js)
+    → content script on Workday (src/js/navigation.js)
     → scraped sections written to chrome.storage.local
-    → background opens src/calendar.html
-    → ScheduleEngine + calendar UI
+    → background (src/js/background.js) opens src/calendar.html
+    → ScheduleEngine + calendar UI (src/js/calendar.js)
 ```
 
 There is no custom backend. The bridge between Workday and the calendar is shared extension storage plus background messaging. See [`storage.md`](./storage.md) for keys and shapes.

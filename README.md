@@ -1,4 +1,4 @@
-# Workday Scheduler
+# Workday Automator
 
 A Chrome extension that turns Workday course browsing into a conflict-free weekly timetable — scrape sections, generate schedules, tweak them on a visual calendar, and save what you like.
 

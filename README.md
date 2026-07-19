@@ -6,7 +6,6 @@ A Chrome extension that turns Workday course browsing into a conflict-free weekl
 
   ![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)
   ![Chrome](https://img.shields.io/badge/platform-Chrome_Manifest_V3-34A853.svg)
-  ![Algorithm](https://img.shields.io/badge/Logic-Backtracking-FF6D01.svg)
 
   <br>
 

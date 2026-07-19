@@ -140,6 +140,3 @@ Issues and pull requests are welcome. Please keep changes focused, avoid committ
 
 ---
 
-## License
-
-No license file is attached yet. If you fork or redistribute, contact the author or add an explicit license before publishing derivatives.

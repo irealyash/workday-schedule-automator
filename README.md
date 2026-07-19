@@ -1,8 +1,24 @@
-# UBC Scheduler
+# Workday Scheduler
 
-A Chrome extension that turns UBC Workday course browsing into a conflict-free weekly timetable — scrape sections, generate schedules, tweak them on a visual calendar, and save what you like.
+A Chrome extension that turns Workday course browsing into a conflict-free weekly timetable — scrape sections, generate schedules, tweak them on a visual calendar, and save what you like.
+
+<div align="center">
+
+  ![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)
+  ![Chrome](https://img.shields.io/badge/platform-Chrome_Manifest_V3-34A853.svg)
+  ![Algorithm](https://img.shields.io/badge/Logic-Backtracking-FF6D01.svg)
+
+  <br>
+
+  <a href="https://youtu.be/1QKfijHx1Zs?si=oVkqx5T9KTPLyczU" target="_blank">
+    <img src="./assets/thumbnail.png" alt="Watch the demo" width="600px">
+  </a>
+  
+  <p><i>Click the thumbnail above to watch the demo</i></p>
+</div>
 
 ---
+
 
 ## Features
 
@@ -60,6 +76,9 @@ Extension entry points stay at the repo root. UI and scripts live under `src/`.
 ├── README.md
 ├── .gitignore
 ├── storage.md                 # Storage keys & data-flow reference
+├── assets/                    # Project media
+│   ├── thumbnail.png          # Video thumbnail for README
+│   └── demo.mp4         # Main walkthrough video
 └── src/
     ├── popup.html             # Extension popup UI
     ├── popup.css

@@ -365,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         await chrome.scripting.executeScript({
             target: { tabId },
-            files: ['js/navigation.js']
+            files: ['src/js/navigation.js']
         });
 
         for (let attempt = 0; attempt < 10; attempt++) {
@@ -510,7 +510,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (saveSchedulePopupBtn) {
         saveSchedulePopupBtn.addEventListener('click', () => {
             // We open the tab with a specific 'trigger' parameter
-            chrome.tabs.create({ url: "calendar.html?trigger=savedSchedules" });
+            chrome.tabs.create({ url: "src/calendar.html?trigger=savedSchedules" });
         });
     }
 

@@ -136,7 +136,7 @@ async function findWorkdayTab() {
 
 async function findCalendarTab() {
 
-    const calendarUrl = chrome.runtime.getURL('calendar.html');
+    const calendarUrl = chrome.runtime.getURL('src/calendar.html');
 
     return new Promise((resolve) => {
 
@@ -168,7 +168,7 @@ async function openOrFocusCalendar(sendResponse) {
 
 
 
-    const url = chrome.runtime.getURL('calendar.html');
+    const url = chrome.runtime.getURL('src/calendar.html');
 
     chrome.tabs.create({ url, active: true }, (tab) => {
 

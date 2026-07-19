@@ -55,22 +55,26 @@ Data stays on your machine via `chrome.storage` — nothing is sent to a third-p
 ```
 .
 ├── manifest.json          # Manifest V3 extension config
-├── popup.html / .css / .js
-├── calendar.html / .css / .js
-├── finale.js              # Workday handoff from saved schedules
+├── README.md
 ├── storage.md             # Storage keys & data-flow reference
-└── js/
-    ├── background.js      # Service worker (tabs, calendar open)
-    ├── navigation.js      # Workday content script / scraping
-    ├── scheduler.js       # Conflict-aware schedule engine
-    ├── state.js           # Calendar app state
-    ├── storage.js         # Popup storage helpers
-    ├── storage2.js        # Calendar storage helpers
-    ├── layoutEngine.js    # Overlap layout for calendar blocks
-    ├── dragManager.js     # Drag-and-drop section swaps
-    ├── scheduleValidator.js
-    ├── savedSchedulesManager.js
-    └── navigation2.js
+└── src/
+    ├── popup.html / .css
+    ├── calendar.html / .css
+    └── js/
+        ├── popup.js
+        ├── calendar.js
+        ├── finale.js          # Workday handoff from saved schedules
+        ├── background.js      # Service worker (tabs, calendar open)
+        ├── navigation.js      # Workday content script / scraping
+        ├── scheduler.js       # Conflict-aware schedule engine
+        ├── state.js           # Calendar app state
+        ├── storage.js         # Popup storage helpers
+        ├── storage2.js        # Calendar storage helpers
+        ├── layoutEngine.js    # Overlap layout for calendar blocks
+        ├── dragManager.js     # Drag-and-drop section swaps
+        ├── scheduleValidator.js
+        ├── savedSchedulesManager.js
+        └── navigation2.js
 ```
 
 ---
@@ -82,7 +86,7 @@ Popup form
     → chrome.storage (workspace draft)
     → content script on Workday (navigation.js)
     → scraped sections written to chrome.storage.local
-    → background opens calendar.html
+    → background opens src/calendar.html
     → ScheduleEngine + calendar UI
 ```
 

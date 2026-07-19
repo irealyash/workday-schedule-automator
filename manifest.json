@@ -13,10 +13,10 @@
         "https://*.myworkday.com/*"
     ],
     "action": {
-        "default_popup": "popup.html"
+        "default_popup": "src/popup.html"
     },
     "background": {
-        "service_worker": "js/background.js"
+        "service_worker": "src/js/background.js"
     },
     "content_scripts": [
         {
@@ -24,7 +24,7 @@
                 "https://*.myworkday.com/*"
             ],
             "js": [
-                "js/navigation.js"
+                "src/js/navigation.js"
             ]
         }
     ]

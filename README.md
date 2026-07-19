@@ -28,8 +28,8 @@ Data stays on your machine via `chrome.storage` — nothing is sent to a third-p
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/irealyash7/workday-automator-scratch-.git
-   cd workday-automator-scratch-
+   git clone https://github.com/irealyash/workday-schedule-automator.git
+   cd workday-schedule-automator
    ```
 2. Open Chrome → `chrome://extensions`
 3. Enable **Developer mode**

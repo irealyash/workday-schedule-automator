@@ -134,9 +134,3 @@ UBC Scheduler is an independent student project. It is **not** affiliated with, 
 
 ---
 
-## Contributing
-
-Issues and pull requests are welcome. Please keep changes focused, avoid committing secrets or personal Workday data, and test with **Load unpacked** before opening a PR.
-
----
-
